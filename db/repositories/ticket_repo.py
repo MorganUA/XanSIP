@@ -18,12 +18,16 @@ class TicketRepository:
         return result.scalar_one_or_none()
 
     async def get_open_by_sip(self, sip_id: int) -> Ticket | None:
-        """Проверяем есть ли уже открытый тикет по этому SIP."""
+        """Проверяем есть ли уже незакрытый тикет по этому SIP."""
         result = await self.session.execute(
             select(Ticket).where(
                 and_(
                     Ticket.sip_id == sip_id,
-                    Ticket.status.in_([TicketStatus.new, TicketStatus.in_progress]),
+                    Ticket.status.in_([
+                        TicketStatus.new,
+                        TicketStatus.in_progress,
+                        TicketStatus.waiting_info,
+                    ]),
                 )
             )
         )

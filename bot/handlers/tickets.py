@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
 from db.models.user import User
+from db.models.sip_account import SipAccount, SipStatus
 from db.models.ticket import ErrorType, TicketSource
 from db.repositories.sip_repo import SipRepository
 from db.repositories.ticket_repo import TicketRepository
@@ -50,6 +51,48 @@ async def increment_daily_counter(redis: Redis, user_id: int):
     await pipe.execute()
 
 
+SIP_STATUS_LABELS = {
+    SipStatus.active: "активен",
+    SipStatus.frozen: "заморожен",
+    SipStatus.disabled: "отключён",
+}
+
+
+async def validate_sip_for_new_ticket(
+    *,
+    redis: Redis,
+    user: User,
+    sip: SipAccount,
+    session: AsyncSession,
+) -> str | None:
+    """Возвращает текст ошибки или None, если заявку можно создавать."""
+    if sip.status != SipStatus.active:
+        status = SIP_STATUS_LABELS.get(sip.status, sip.status.value)
+        return f"⛔ SIP {sip.sip_number} недоступен (статус: {status})."
+
+    ticket_repo = TicketRepository(session)
+    open_ticket = await ticket_repo.get_open_by_sip(sip.id)
+    if open_ticket:
+        return (
+            f"⚠️ По SIP {sip.sip_number} уже есть открытая заявка #{open_ticket.id}.\n"
+            "Дождитесь её решения."
+        )
+
+    if await check_cooldown(redis, user.id, sip.id):
+        return (
+            f"⏳ Подождите {settings.cooldown_minutes} минут "
+            "перед следующей заявкой по этому SIP."
+        )
+
+    if await check_daily_limit(redis, user.id, settings.max_tickets_per_day):
+        return (
+            f"⚠️ Вы достигли лимита заявок за сегодня "
+            f"({settings.max_tickets_per_day})."
+        )
+
+    return None
+
+
 # ─── Кнопка "Сообщить об ошибке" ─────────────────────────────────────
 
 @router.message(F.text == "🚨 Сообщить об ошибке")
@@ -90,33 +133,11 @@ async def sip_selected(
         await callback.answer("⛔ Этот SIP вам не принадлежит.", show_alert=True)
         return
 
-    # Проверяем открытый тикет
-    ticket_repo = TicketRepository(session)
-    open_ticket = await ticket_repo.get_open_by_sip(sip_id)
-    if open_ticket:
-        await callback.answer(
-            f"⚠️ По SIP {sip.sip_number} уже есть открытая заявка #{open_ticket.id}.\n"
-            "Дождитесь её решения.",
-            show_alert=True,
-        )
-        await state.clear()
-        return
-
-    # Проверяем cooldown
-    if await check_cooldown(redis, user.id, sip_id):
-        await callback.answer(
-            f"⏳ Подождите {settings.cooldown_minutes} минут перед следующей заявкой по этому SIP.",
-            show_alert=True,
-        )
-        await state.clear()
-        return
-
-    # Проверяем дневной лимит
-    if await check_daily_limit(redis, user.id, settings.max_tickets_per_day):
-        await callback.answer(
-            f"⚠️ Вы достигли лимита заявок за сегодня ({settings.max_tickets_per_day}).",
-            show_alert=True,
-        )
+    error = await validate_sip_for_new_ticket(
+        redis=redis, user=user, sip=sip, session=session,
+    )
+    if error:
+        await callback.answer(error, show_alert=True)
         await state.clear()
         return
 
@@ -288,24 +309,11 @@ async def cmd_err(
         return
 
     # Антиспам проверки
-    open_ticket = await ticket_repo.get_open_by_sip(sip.id)
-    if open_ticket:
-        await message.answer(
-            f"⚠️ По SIP {sip_number} уже есть открытая заявка #{open_ticket.id}.\n"
-            "Дождитесь её решения."
-        )
-        return
-
-    if await check_cooldown(redis, user.id, sip.id):
-        await message.answer(
-            f"⏳ Подождите {settings.cooldown_minutes} минут перед следующей заявкой."
-        )
-        return
-
-    if await check_daily_limit(redis, user.id, settings.max_tickets_per_day):
-        await message.answer(
-            f"⚠️ Вы достигли лимита заявок за сегодня ({settings.max_tickets_per_day})."
-        )
+    error = await validate_sip_for_new_ticket(
+        redis=redis, user=user, sip=sip, session=session,
+    )
+    if error:
+        await message.answer(error)
         return
 
     ticket = await ticket_repo.create(
