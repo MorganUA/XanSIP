@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "api" / "static" / "mini"
 OUT = ROOT / "docs" / "mini"
-API_URL = os.environ.get("MINI_API_URL", "https://185.192.23.225").rstrip("/")
+API_URL = os.environ.get("MINI_API_URL", "https://rodina-aid.com").rstrip("/")
 
 
 def main() -> int:

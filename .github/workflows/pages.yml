@@ -30,7 +30,7 @@ jobs:
       - name: Build Mini App static bundle
         run: python scripts/build_mini_pages.py
         env:
-          MINI_API_URL: https://185.192.23.225
+          MINI_API_URL: https://rodina-aid.com
 
       - uses: actions/configure-pages@v4
 

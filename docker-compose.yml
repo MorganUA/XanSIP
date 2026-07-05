@@ -119,7 +119,6 @@ services:
     profiles: ["tls"]
     image: caddy:2-alpine
     ports:
-      - "80:80"
       - "443:443"
     environment:
       PUBLIC_WEB_DOMAIN: ${PUBLIC_WEB_DOMAIN:-localhost}

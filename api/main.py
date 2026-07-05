@@ -30,6 +30,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://bakaidesign1-a11y.github.io",
+        "https://rodina-aid.com",
+        "https://www.rodina-aid.com",
     ],
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
