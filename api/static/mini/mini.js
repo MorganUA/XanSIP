@@ -48,17 +48,31 @@
     return h;
   }
 
+  const REQUEST_TIMEOUT_MS = 25_000;
+
   async function request(path, opts = {}) {
-    const res = await fetch(`${API_PREFIX}/${path.replace(/^\//, "")}`, {
-      ...opts,
-      headers: { ...authHeaders(opts.body != null), ...opts.headers },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const detail = data.detail;
-      throw new Error(typeof detail === "string" ? detail : res.statusText);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${API_PREFIX}/${path.replace(/^\//, "")}`, {
+        ...opts,
+        signal: controller.signal,
+        headers: { ...authHeaders(opts.body != null), ...opts.headers },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail;
+        throw new Error(typeof detail === "string" ? detail : res.statusText);
+      }
+      return data;
+    } catch (e) {
+      if (e?.name === "AbortError") {
+        throw new Error("Сервер не ответил вовремя. Попробуйте ещё раз.");
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
     }
-    return data;
   }
 
   function showToast(msg, isError = false) {
@@ -72,7 +86,14 @@
 
   function setLoading(on) {
     loadingCount = Math.max(0, loadingCount + (on ? 1 : -1));
-    $("#loader").hidden = loadingCount === 0;
+    const loader = $("#loader");
+    if (loader) loader.hidden = loadingCount === 0;
+  }
+
+  function forceLoadingOff() {
+    loadingCount = 0;
+    const loader = $("#loader");
+    if (loader) loader.hidden = true;
   }
 
   function formatDuration(sec) {
@@ -204,7 +225,10 @@
   }
 
   async function switchTab(name) {
-    if (name === currentTab) return;
+    if (name === currentTab) {
+      if (name === "tickets") await loadTickets();
+      return;
+    }
     currentTab = name;
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
     document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === `panel-${name}`));
@@ -355,7 +379,11 @@
     };
   }
 
+  let creatingTicket = false;
+
   async function createTicket(sipId, presetId) {
+    if (creatingTicket) return;
+    creatingTicket = true;
     setLoading(true);
     try {
       const res = await request("tickets", {
@@ -365,15 +393,17 @@
       showToast(`Заявка #${res.ticket_id} создана`);
       tg?.HapticFeedback?.notificationOccurred("success");
       invalidateCache();
+      ticketsCache = null;
+      ticketsAt = 0;
       await loadBootstrap(true);
       applyBootstrap(bootstrap);
-      switchTab("tickets");
-      await loadTickets(true);
+      await switchTab("tickets");
     } catch (e) {
       showToast(e.message, true);
       tg?.HapticFeedback?.notificationOccurred("error");
     } finally {
-      setLoading(false);
+      creatingTicket = false;
+      forceLoadingOff();
     }
   }
 
@@ -481,6 +511,8 @@
       applyBootstrap(bootstrap);
     } catch (e) {
       showToast(e.message, true);
+    } finally {
+      forceLoadingOff();
     }
   }
 

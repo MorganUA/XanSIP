@@ -61,7 +61,7 @@ async def notify_support_new_ticket_http(
 
     url = f"https://api.telegram.org/bot{settings.bot_token}/sendMessage"
     ok = False
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=8) as client:
         for chat_id in chat_ids:
             try:
                 res = await client.post(url, json={

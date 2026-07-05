@@ -196,6 +196,7 @@ body {
   justify-content: center;
   z-index: 30;
 }
+.loader[hidden] { display: none !important; }
 .spinner {
   width: 36px;
   height: 36px;

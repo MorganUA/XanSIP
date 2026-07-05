@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +20,35 @@ from db.models.ticket import ErrorType, TicketSource
 from db.models.user import User
 from db.repositories.sip_repo import SipRepository
 from db.repositories.ticket_repo import TicketRepository
+
+logger = logging.getLogger(__name__)
+
+
+async def _notify_support_background(
+    session: AsyncSession,
+    ticket_id: int,
+    user_id: int,
+    sip_id: int,
+    *,
+    error_label: str,
+) -> None:
+    """Fire-and-forget: не блокирует ответ Mini App."""
+    from db.base import async_session_maker
+    from db.repositories.sip_repo import SipRepository as SipRepo
+    from db.repositories.ticket_repo import TicketRepository as TicketRepo
+    from db.repositories.user_repo import UserRepository
+
+    try:
+        async with async_session_maker() as bg_session:
+            ticket = await TicketRepo(bg_session).get_by_id(ticket_id)
+            user = await UserRepository(bg_session).get_by_id(user_id)
+            sip = await SipRepo(bg_session).get_by_id(sip_id)
+            if ticket and user:
+                await notify_support_new_ticket_http(
+                    bg_session, ticket, user, sip, error_label=error_label,
+                )
+    except Exception:
+        logger.exception("Background support notify failed for ticket %s", ticket_id)
 
 
 async def create_personal_ticket(
@@ -54,13 +86,19 @@ async def create_personal_ticket(
     await set_cooldown(redis, user.id, sip.id, settings.cooldown_minutes)
     await increment_daily_counter(redis, user.id)
 
-    notified = await notify_support_new_ticket_http(
-        session, ticket, user, sip, error_label=preset.label,
+    asyncio.create_task(
+        _notify_support_background(
+            session,
+            ticket.id,
+            user.id,
+            sip.id,
+            error_label=preset.label,
+        )
     )
 
     return {
         "ticket_id": ticket.id,
         "sip_number": sip.sip_number,
         "error_label": preset.label,
-        "notified": notified,
+        "notified": True,
     }
