@@ -63,5 +63,21 @@ def test_cookie_https_only_from_public_url(monkeypatch):
         database_url="postgresql+asyncpg://u:p@localhost/db",
         redis_url="redis://localhost/0",
         public_web_url="https://crm.example.com",
+        sipcrm_env="production",
+        test_mode=False,
     )
     assert s.cookie_https_only is True
+
+
+def test_cookie_https_only_off_in_test_mode():
+    s = Settings(
+        bot_token="x",
+        support_group_id=1,
+        superadmin_telegram_id=1,
+        database_url="postgresql+asyncpg://u:p@localhost/db",
+        redis_url="redis://localhost/0",
+        public_web_url="https://crm.example.com",
+        sipcrm_env="production",
+        test_mode=True,
+    )
+    assert s.cookie_https_only is False

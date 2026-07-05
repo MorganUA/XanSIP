@@ -16,6 +16,21 @@ if root_str not in sys.path:
     sys.path.insert(0, root_str)
 
 
+@pytest.fixture(autouse=True)
+def _disable_login_rate_limit(monkeypatch):
+    """Tests share TestClient IP — avoid 429 between login attempts."""
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    for target in (
+        "services.login_rate_limit.check_login_allowed",
+        "services.login_rate_limit.record_login_failure",
+        "services.login_rate_limit.clear_login_failures",
+    ):
+        monkeypatch.setattr(target, _noop)
+
+
 @pytest.fixture
 def client(monkeypatch):
     """TestClient с обходом web_accounts (asyncpg loop в тестах)."""

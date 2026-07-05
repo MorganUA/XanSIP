@@ -13,13 +13,16 @@ def _login_client(client: TestClient, monkeypatch) -> TestClient:
     monkeypatch.setattr("bot.config.settings.web_admin_username", "qa_admin")
     monkeypatch.setattr("bot.config.settings.web_admin_password", "qa_secret")
     cap = client.get("/api/auth/captcha")
+    assert cap.status_code == 200, cap.text
     q = cap.json()["question"]
     m = re.match(r"(\d+)\s*\+\s*(\d+)", q)
+    assert m, q
     answer = str(int(m.group(1)) + int(m.group(2)))
-    client.post(
+    r = client.post(
         "/api/auth/login",
         json={"username": "qa_admin", "password": "qa_secret", "captcha": answer},
     )
+    assert r.status_code == 200, r.text
     return client
 
 

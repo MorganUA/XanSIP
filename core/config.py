@@ -71,6 +71,9 @@ class Settings(BaseSettings):
 
     @property
     def cookie_https_only(self) -> bool:
+        # QA/pytest and internal health checks use HTTP (127.0.0.1, TestClient).
+        if self.test_mode or not self.is_production:
+            return False
         if self.session_https_only:
             return True
         return self.public_web_url.lower().startswith("https://")
