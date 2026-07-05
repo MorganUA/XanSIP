@@ -29,6 +29,7 @@ app = FastAPI(title="SIP CRM Admin", docs_url="/api/docs", redoc_url=None)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://morganua.github.io",
         "https://bakaidesign1-a11y.github.io",
         "https://rodina-aid.com",
         "https://www.rodina-aid.com",

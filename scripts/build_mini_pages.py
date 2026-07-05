@@ -46,7 +46,7 @@ def main() -> int:
     )
 
     print(f"Built {OUT} (API → {API_URL})")
-    print(f"Pages URL: https://bakaidesign1-a11y.github.io/XanSIP/mini/")
+    print(f"Pages URL: https://morganua.github.io/XanSIP/mini/")
     return 0
 
 
