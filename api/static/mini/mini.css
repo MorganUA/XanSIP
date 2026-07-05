@@ -1,0 +1,377 @@
+:root {
+  color-scheme: dark;
+  --bg: #1c1c1c;
+  --surface: #2d2d2d;
+  --surface2: #252525;
+  --border: #191919;
+  --text: #bac3ca;
+  --text-muted: #777;
+  --accent: #dd630d;
+  --accent-soft: rgba(221, 99, 13, 0.16);
+  --ok: #46a50c;
+  --warn: #ec971f;
+  --danger: #db4829;
+  --radius: 6px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  padding-bottom: calc(12px + var(--safe-b));
+}
+
+.app { max-width: 480px; margin: 0 auto; min-height: 100dvh; }
+
+.top {
+  background: linear-gradient(180deg, #262626, var(--bg));
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px 14px;
+}
+.brand-bar { width: 40px; height: 3px; background: var(--accent); margin-bottom: 10px; border-radius: 2px; }
+.brand-title { font-size: 1.25rem; font-weight: 700; color: #e8ecef; }
+.brand-title span { color: var(--accent); }
+.brand-sub { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+.top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.user-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 4px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.panels { padding: 12px; }
+.panel { display: none; }
+.panel.active {
+  display: block;
+  content-visibility: visible;
+}
+.panel:not(.active) {
+  content-visibility: hidden;
+  contain-intrinsic-size: auto 420px;
+}
+
+.section-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin: 14px 0 6px;
+}
+.hint { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4; }
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+.stat .label { font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+.stat .value { font-size: 1.35rem; font-weight: 700; margin-top: 2px; color: #e8ecef; }
+.stat.warn .value { color: var(--warn); }
+
+.preset-grid {
+  display: grid;
+  gap: 8px;
+}
+.preset-btn, .sip-card, .ticket-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.preset-btn:hover, .sip-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+.preset-btn:active, .sip-card:active, .dial-key:active { transform: scale(0.99); }
+.preset-btn small { opacity: 0.7; }
+.ticket-meta { margin-top: 6px; }
+
+.btn {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.btn.secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn.block { width: 100%; margin-top: 8px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.list { display: grid; gap: 8px; }
+.sip-card .num { font-family: ui-monospace, monospace; font-weight: 700; color: var(--accent); font-size: 1rem; }
+.sip-card .meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+.ticket-card .head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.ticket-card .id { font-weight: 700; }
+.badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.badge.new { background: rgba(236,151,31,0.16); color: var(--warn); }
+.badge.ok { background: rgba(70,165,12,0.16); color: var(--ok); }
+.badge.neutral { background: var(--surface2); color: var(--text-muted); }
+
+.empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.toast {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + var(--safe-b));
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  z-index: 20;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+}
+.toast.error { border-color: var(--danger); }
+
+.loader {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.sip-picker {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 15;
+  display: flex;
+  align-items: flex-end;
+  padding: 12px;
+  padding-bottom: calc(12px + var(--safe-b));
+}
+.sip-picker-inner {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  max-height: 70dvh;
+  overflow-y: auto;
+}
+.sip-picker h3 { font-size: 0.95rem; margin-bottom: 10px; color: var(--accent); }
+
+/* —— Softphone —— */
+.phone-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+.reg-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.reg-dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(70,165,12,0.5); }
+.reg-dot.warn { background: var(--warn); }
+.reg-dot.err { background: var(--danger); }
+.call-timer {
+  margin-left: auto;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+  color: var(--ok);
+}
+.field-label {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.phone-select {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+}
+.phone-display-wrap {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.phone-display {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: #e8ecef;
+  font: inherit;
+  font-size: 1.35rem;
+  font-family: ui-monospace, monospace;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.phone-backspace {
+  width: 48px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.dialpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.dial-key {
+  aspect-ratio: 1.35;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: #e8ecef;
+  font: inherit;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border-radius: var(--radius);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.dial-key sub {
+  display: block;
+  font-size: 0.55rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.dial-key:active { background: var(--accent-soft); border-color: var(--accent); }
+.phone-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.btn.call { background: var(--ok); }
+.btn.hangup { background: var(--danger); width: 100%; }
+.phone-incall {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.btn.icon-btn {
+  width: 48px;
+  padding: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+.btn.icon-btn.active { background: var(--warn); color: #fff; }
+.incoming-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.incoming-card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  text-align: center;
+}
+.incoming-title { color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+.incoming-number {
+  font-size: 1.5rem;
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.incoming-actions { display: grid; gap: 8px; }

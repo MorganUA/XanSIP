@@ -23,6 +23,7 @@ class TicketStatus(str, enum.Enum):
     resolved = "resolved"
     rejected = "rejected"
     waiting_info = "waiting_info"
+    closed = "closed"
 
 
 class TicketSource(str, enum.Enum):
@@ -51,8 +52,14 @@ class Ticket(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    initiator_telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    error_preset_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    sip_number_snapshot: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships

@@ -19,8 +19,6 @@ class AuthMiddleware(BaseMiddleware):
         if session is None:
             return await handler(event, data)
 
-        # event здесь — это Update
-        # tg_user достаём из event_from_user — aiogram кладёт его сам
         tg_user = data.get("event_from_user")
 
         if tg_user is None or tg_user.is_bot:
@@ -45,8 +43,12 @@ class AuthMiddleware(BaseMiddleware):
                 role=role,
             )
         else:
-            if user.username != tg_user.username:
-                await repo.update_username(user, tg_user.username)
+            await repo.sync_profile(
+                user,
+                username=tg_user.username,
+                first_name=tg_user.first_name,
+                last_name=tg_user.last_name,
+            )
 
         data["user"] = user
         return await handler(event, data)

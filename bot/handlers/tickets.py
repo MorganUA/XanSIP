@@ -2,119 +2,165 @@ from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models.user import User
-from db.models.sip_account import SipAccount, SipStatus
+from bot.config import settings
+from bot.catalog.errors import (
+    CATEGORY_LABELS,
+    ErrorCategory,
+    get_preset,
+)
+from bot.catalog.group_errors import get_group_preset
+from bot.filters.chat import apply_private_chat_filter
+from bot.fsm.states import TicketFSM
+from bot.keyboards.error_types import (
+    get_error_category_keyboard,
+    get_error_presets_keyboard,
+)
+from bot.keyboards.private_err import (
+    get_private_error_keyboard,
+    get_private_submenu_keyboard,
+)
+from bot.keyboards.main_menu import get_main_menu
+from bot.keyboards.sip_select import get_sip_select_keyboard
+from bot.utils.menu_catalog import BTN_ADMIN, BTN_MINI_APP, BTN_REPORT, TEXTS_REPORT
+from bot.utils.fsm_menu_guard import cancel_fsm_for_menu_button
+from bot.utils.webapp import get_mini_app_url
+from bot.utils.formatting import escape_html
+from bot.utils.notify import notify_support_new_ticket
+from bot.utils.quick_errors import OTHER_ERROR_BUTTON, preset_id_from_button, quick_error_button_texts
+from bot.utils.quick_ticket_flow import (
+    apply_quick_preset_to_sip,
+    begin_quick_ticket,
+    show_confirm_edit as _show_confirm_edit,
+    show_confirm_message as _show_confirm_message,
+)
+from bot.utils.ticket_validation import (
+    increment_daily_counter,
+    set_cooldown,
+    validate_sip_for_new_ticket,
+)
 from db.models.ticket import ErrorType, TicketSource
+from db.models.user import User
 from db.repositories.sip_repo import SipRepository
 from db.repositories.ticket_repo import TicketRepository
-from bot.fsm.states import TicketFSM
-from bot.keyboards.sip_select import get_sip_select_keyboard
-from bot.keyboards.error_types import get_error_type_keyboard, ERROR_TYPE_LABELS
-from bot.keyboards.main_menu import get_main_menu
-from bot.utils.notify import notify_support_new_ticket
-from bot.config import settings
 
-router = Router()
+router = apply_private_chat_filter(Router())
 
 
-# ─── Антиспам хелперы ────────────────────────────────────────────────
-
-async def check_cooldown(redis: Redis, user_id: int, sip_id: int) -> bool:
-    """True = cooldown активен (нельзя создавать)."""
-    key = f"cooldown:sip:{sip_id}:user:{user_id}"
-    result = await redis.get(key)
-    return result is not None
-
-
-async def set_cooldown(redis: Redis, user_id: int, sip_id: int, minutes: int):
-    key = f"cooldown:sip:{sip_id}:user:{user_id}"
-    await redis.set(key, 1, ex=minutes * 60)
-
-
-async def check_daily_limit(redis: Redis, user_id: int, max_tickets: int) -> bool:
-    """True = лимит превышен."""
-    key = f"daily_tickets:user:{user_id}"
-    count = await redis.get(key)
-    if count is None:
-        return False
-    return int(count) >= max_tickets
+def _ticket_success_text(ticket_id: int, *, support_notified: bool) -> str:
+    if support_notified:
+        return (
+            f"✅ <b>Заявка #{ticket_id} создана!</b>\n\n"
+            "Наша команда поддержки уже получила уведомление.\n"
+            "Мы сообщим вам об изменении статуса."
+        )
+    return (
+        f"✅ <b>Заявка #{ticket_id} создана!</b>\n\n"
+        "⚠️ Не удалось уведомить поддержку автоматически.\n"
+        "Сообщите администратору номер заявки."
+    )
 
 
-async def increment_daily_counter(redis: Redis, user_id: int):
-    key = f"daily_tickets:user:{user_id}"
-    pipe = redis.pipeline()
-    await pipe.incr(key)
-    await pipe.expire(key, 86400)
-    await pipe.execute()
-
-
-SIP_STATUS_LABELS = {
-    SipStatus.active: "активен",
-    SipStatus.frozen: "заморожен",
-    SipStatus.disabled: "отключён",
-}
-
-
-async def validate_sip_for_new_ticket(
+async def _show_confirm(
+    target,
     *,
-    redis: Redis,
+    sip_number: str,
+    error_label: str,
+    description: str,
+    edit: bool = False,
+):
+    if edit:
+        await _show_confirm_edit(
+            target, sip_number=sip_number, error_label=error_label, description=description,
+        )
+    else:
+        await _show_confirm_message(
+            target, sip_number=sip_number, error_label=error_label, description=description,
+        )
+
+
+@router.message(F.text.in_(TEXTS_REPORT))
+async def open_report_menu(message: Message, user: User):
+    mini = f"\nИли откройте <b>{BTN_MINI_APP}</b>." if get_mini_app_url() else ""
+    await message.answer(
+        f"<b>{BTN_REPORT}</b>\n\n"
+        f"Выберите тип проблемы:{mini}",
+        parse_mode="HTML",
+        reply_markup=get_private_error_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("perr:"))
+async def private_err_callback(
+    callback: CallbackQuery,
     user: User,
-    sip: SipAccount,
+    state: FSMContext,
     session: AsyncSession,
-) -> str | None:
-    """Возвращает текст ошибки или None, если заявку можно создавать."""
-    if sip.status != SipStatus.active:
-        status = SIP_STATUS_LABELS.get(sip.status, sip.status.value)
-        return f"⛔ SIP {sip.sip_number} недоступен (статус: {status})."
+    redis: Redis,
+):
+    parts = callback.data.split(":")
+    action = parts[1]
 
-    ticket_repo = TicketRepository(session)
-    open_ticket = await ticket_repo.get_open_by_sip(sip.id)
-    if open_ticket:
-        return (
-            f"⚠️ По SIP {sip.sip_number} уже есть открытая заявка #{open_ticket.id}.\n"
-            "Дождитесь её решения."
-        )
+    if action == "more":
+        await callback.message.edit_reply_markup(reply_markup=get_private_submenu_keyboard())
+        await callback.answer()
+        return
+    if action == "back":
+        await callback.message.edit_reply_markup(reply_markup=get_private_error_keyboard())
+        await callback.answer()
+        return
+    if action == "cancel":
+        await callback.message.edit_reply_markup(reply_markup=None)
+        await callback.answer("Отменено")
+        return
+    if action == "catalog":
+        await callback.message.edit_reply_markup(reply_markup=None)
+        await start_ticket_fsm(callback.message, user, state, session)
+        await callback.answer()
+        return
+    if action not in ("m", "s"):
+        await callback.answer()
+        return
 
-    if await check_cooldown(redis, user.id, sip.id):
-        return (
-            f"⏳ Подождите {settings.cooldown_minutes} минут "
-            "перед следующей заявкой по этому SIP."
-        )
-
-    if await check_daily_limit(redis, user.id, settings.max_tickets_per_day):
-        return (
-            f"⚠️ Вы достигли лимита заявок за сегодня "
-            f"({settings.max_tickets_per_day})."
-        )
-
-    return None
+    preset_id = parts[2]
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+    await begin_quick_ticket(callback.message, user, state, session, redis, preset_id)
 
 
-# ─── Кнопка "Сообщить об ошибке" ─────────────────────────────────────
+@router.message(F.text.in_(quick_error_button_texts()))
+async def quick_error_from_menu(
+    message: Message,
+    user: User,
+    state: FSMContext,
+    session: AsyncSession,
+    redis: Redis,
+):
+    preset_id = preset_id_from_button(message.text)
+    if preset_id:
+        await begin_quick_ticket(message, user, state, session, redis, preset_id)
 
-@router.message(F.text == "🚨 Сообщить об ошибке")
+
+@router.message(F.text == OTHER_ERROR_BUTTON)
 async def start_ticket_fsm(message: Message, user: User, state: FSMContext, session: AsyncSession):
     sip_repo = SipRepository(session)
     sips = await sip_repo.get_active_by_user_id(user.id)
 
     if not sips:
         await message.answer(
-            "📞 У вас нет активных SIP-номеров.\n"
-            "Обратитесь к администратору для подключения."
+            "Нет активных SIP-номеров.\n"
+            f"Обратитесь в <b>{BTN_ADMIN}</b> для подключения."
         )
         return
 
     await state.set_state(TicketFSM.selecting_sip)
     await message.answer(
-        "📞 Выберите SIP-номер, по которому возникла проблема:",
+        "Выберите SIP-номер, по которому возникла проблема:",
         reply_markup=get_sip_select_keyboard(sips),
     )
 
-
-# ─── FSM: выбор SIP ──────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("sip:select:"), TicketFSM.selecting_sip)
 async def sip_selected(
@@ -125,8 +171,6 @@ async def sip_selected(
     redis: Redis,
 ):
     sip_id = int(callback.data.split(":")[2])
-
-    # Проверяем что SIP принадлежит пользователю
     sip_repo = SipRepository(session)
     sip = await sip_repo.get_by_id(sip_id)
     if not sip or sip.user_id != user.id:
@@ -142,54 +186,145 @@ async def sip_selected(
         return
 
     await state.update_data(sip_id=sip_id, sip_number=sip.sip_number)
-    await state.set_state(TicketFSM.selecting_error_type)
+    data = await state.get_data()
+    quick_preset_id = data.get("quick_preset_id")
 
+    if quick_preset_id:
+        preset = get_group_preset(quick_preset_id)
+        if not preset:
+            await state.clear()
+            await callback.answer("⚠️ Ошибка не найдена.", show_alert=True)
+            return
+        await state.update_data(
+            error_type=preset.error_type.value,
+            description=preset.label,
+            error_label=preset.label,
+            quick_preset_id=None,
+        )
+        await state.set_state(TicketFSM.confirming)
+        await _show_confirm(
+            callback.message,
+            sip_number=sip.sip_number,
+            error_label=preset.label,
+            description=preset.label,
+            edit=True,
+        )
+        await callback.answer()
+        return
+
+    await state.set_state(TicketFSM.selecting_error_type)
     await callback.message.edit_text(
-        f"📞 SIP: <code>{sip.sip_number}</code>\n\n"
-        "⚠️ Выберите тип ошибки:",
+        f"📞 SIP: <code>{escape_html(sip.sip_number)}</code>\n\n"
+        "⚠️ Выберите категорию ошибки:",
         parse_mode="HTML",
-        reply_markup=get_error_type_keyboard(sip_id),
+        reply_markup=get_error_category_keyboard(sip_id),
     )
     await callback.answer()
 
 
-# ─── FSM: выбор типа ошибки ──────────────────────────────────────────
-
-@router.callback_query(F.data.startswith("error:type:"), TicketFSM.selecting_error_type)
-async def error_type_selected(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data.startswith("error:cat:"), TicketFSM.selecting_error_type)
+async def error_category_selected(callback: CallbackQuery, state: FSMContext):
     parts = callback.data.split(":")
     sip_id = int(parts[2])
-    error_type_str = parts[3]
+    category = ErrorCategory(parts[3])
+    data = await state.get_data()
 
-    await state.update_data(error_type=error_type_str)
-
-    if error_type_str == ErrorType.other.value:
-        await state.set_state(TicketFSM.entering_description)
-        await callback.message.edit_text(
-            "💬 Опишите проблему своими словами:\n\n"
-            "<i>Напишите подробное описание ошибки.</i>",
-            parse_mode="HTML",
-        )
-    else:
-        label = ERROR_TYPE_LABELS.get(ErrorType(error_type_str), error_type_str)
-        await state.update_data(description=label)
-        await state.set_state(TicketFSM.confirming)
-        data = await state.get_data()
-        await callback.message.edit_text(
-            f"📋 <b>Подтвердите заявку:</b>\n\n"
-            f"📞 SIP: <code>{data['sip_number']}</code>\n"
-            f"⚠️ Ошибка: {label}\n\n"
-            "Отправить заявку?",
-            parse_mode="HTML",
-            reply_markup=_confirm_keyboard(),
-        )
+    await state.set_state(TicketFSM.selecting_error_preset)
+    await callback.message.edit_text(
+        f"📞 SIP: <code>{escape_html(data['sip_number'])}</code>\n\n"
+        f"{CATEGORY_LABELS[category]}\n"
+        "Выберите ошибку из списка:",
+        parse_mode="HTML",
+        reply_markup=get_error_presets_keyboard(category, page=0, sip_id=sip_id),
+    )
     await callback.answer()
 
 
-# ─── FSM: ввод описания (если "Другое") ──────────────────────────────
+@router.callback_query(F.data.startswith("error:page:"), TicketFSM.selecting_error_preset)
+async def error_preset_page(callback: CallbackQuery, state: FSMContext):
+    parts = callback.data.split(":")
+    sip_id = int(parts[2])
+    category = ErrorCategory(parts[3])
+    page = int(parts[4])
+    data = await state.get_data()
+
+    await callback.message.edit_text(
+        f"📞 SIP: <code>{escape_html(data['sip_number'])}</code>\n\n"
+        f"{CATEGORY_LABELS[category]}\n"
+        "Выберите ошибку из списка:",
+        parse_mode="HTML",
+        reply_markup=get_error_presets_keyboard(category, page=page, sip_id=sip_id),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("error:back:"), TicketFSM.selecting_error_preset)
+async def error_back_to_categories(callback: CallbackQuery, state: FSMContext):
+    sip_id = int(callback.data.split(":")[2])
+    data = await state.get_data()
+    await state.set_state(TicketFSM.selecting_error_type)
+    await callback.message.edit_text(
+        f"📞 SIP: <code>{escape_html(data['sip_number'])}</code>\n\n"
+        "⚠️ Выберите категорию ошибки:",
+        parse_mode="HTML",
+        reply_markup=get_error_category_keyboard(sip_id),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("error:preset:"), TicketFSM.selecting_error_preset)
+async def error_preset_selected(callback: CallbackQuery, state: FSMContext):
+    parts = callback.data.split(":")
+    preset_id = parts[3]
+    preset = get_preset(preset_id)
+    if not preset:
+        await callback.answer("⚠️ Ошибка не найдена.", show_alert=True)
+        return
+
+    error_label = f"{CATEGORY_LABELS[preset.category]} → {preset.title}"
+    await state.update_data(
+        error_type=preset.error_type.value,
+        description=preset.description,
+        error_label=error_label,
+    )
+    await state.set_state(TicketFSM.confirming)
+    data = await state.get_data()
+    await _show_confirm(
+        callback.message,
+        sip_number=data["sip_number"],
+        error_label=error_label,
+        description=preset.description,
+        edit=True,
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("error:type:"), TicketFSM.selecting_error_type)
+async def error_type_selected(callback: CallbackQuery, state: FSMContext):
+    error_type_str = callback.data.split(":")[3]
+    if error_type_str != ErrorType.other.value:
+        await callback.answer("⚠️ Выберите ошибку из справочника.", show_alert=True)
+        return
+
+    await state.update_data(error_type=error_type_str, error_label="💬 Другое")
+    await state.set_state(TicketFSM.entering_description)
+    await callback.message.edit_text(
+        "💬 Опишите проблему своими словами:\n\n"
+        "<i>Напишите подробное описание ошибки.</i>",
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
 
 @router.message(TicketFSM.entering_description)
-async def description_entered(message: Message, state: FSMContext):
+async def description_entered(message: Message, state: FSMContext, user: User, session: AsyncSession):
+    if await cancel_fsm_for_menu_button(
+        message, user, state, session, cancel_note="Создание заявки отменено.",
+    ):
+        return
+    if not message.text:
+        await message.answer("⚠️ Отправьте текстовое описание проблемы.")
+        return
     if len(message.text) < 5:
         await message.answer("⚠️ Описание слишком короткое. Напишите подробнее.")
         return
@@ -200,19 +335,13 @@ async def description_entered(message: Message, state: FSMContext):
     await state.update_data(description=message.text)
     await state.set_state(TicketFSM.confirming)
     data = await state.get_data()
-
-    await message.answer(
-        f"📋 <b>Подтвердите заявку:</b>\n\n"
-        f"📞 SIP: <code>{data['sip_number']}</code>\n"
-        f"⚠️ Ошибка: Другое\n"
-        f"📝 Описание: {message.text}\n\n"
-        "Отправить заявку?",
-        parse_mode="HTML",
-        reply_markup=_confirm_keyboard(),
+    await _show_confirm(
+        message,
+        sip_number=data["sip_number"],
+        error_label="Другое",
+        description=message.text,
     )
 
-
-# ─── FSM: подтверждение и создание тикета ────────────────────────────
 
 @router.callback_query(F.data == "ticket:confirm", TicketFSM.confirming)
 async def confirm_ticket(
@@ -224,43 +353,48 @@ async def confirm_ticket(
     redis: Redis,
 ):
     data = await state.get_data()
-    await state.clear()
-
     sip_repo = SipRepository(session)
     ticket_repo = TicketRepository(session)
 
     sip = await sip_repo.get_by_id(data["sip_id"])
-    error_type = ErrorType(data["error_type"])
-    description = data["description"]
+    if not sip or sip.user_id != user.id:
+        await state.clear()
+        await callback.answer("⛔ SIP не найден.", show_alert=True)
+        return
 
+    error = await validate_sip_for_new_ticket(
+        redis=redis, user=user, sip=sip, session=session,
+    )
+    if error:
+        await state.clear()
+        await callback.answer(error, show_alert=True)
+        return
+
+    error_label = data.get("error_label")
+    await state.clear()
     ticket = await ticket_repo.create(
         user_id=user.id,
-        sip_id=sip.id if sip else None,
-        error_type=error_type,
-        description=description,
+        sip_id=sip.id,
+        error_type=ErrorType(data["error_type"]),
+        description=data["description"],
         source=TicketSource.personal_chat,
     )
 
-    # Устанавливаем cooldown и счётчик
-    if sip:
-        await set_cooldown(redis, user.id, sip.id, settings.cooldown_minutes)
+    await set_cooldown(redis, user.id, sip.id, settings.cooldown_minutes)
     await increment_daily_counter(redis, user.id)
 
-    # Уведомляем support
-    msg_id = await notify_support_new_ticket(bot, ticket, user, sip)
+    msg_id = await notify_support_new_ticket(
+        bot, ticket, user, sip, error_label=error_label, session=session,
+    )
     if msg_id:
         await ticket_repo.set_support_message_id(ticket, msg_id)
 
     await callback.message.edit_text(
-        f"✅ <b>Заявка #{ticket.id} создана!</b>\n\n"
-        "Наша команда поддержки уже получила уведомление.\n"
-        "Мы сообщим вам об изменении статуса.",
+        _ticket_success_text(ticket.id, support_notified=msg_id is not None),
         parse_mode="HTML",
     )
     await callback.answer()
 
-
-# ─── Отмена FSM ──────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "ticket:cancel")
 async def cancel_ticket(callback: CallbackQuery, state: FSMContext):
@@ -268,8 +402,6 @@ async def cancel_ticket(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("❌ Создание заявки отменено.")
     await callback.answer()
 
-
-# ─── Команда /err ─────────────────────────────────────────────────────
 
 @router.message(Command("err"))
 async def cmd_err(
@@ -279,36 +411,32 @@ async def cmd_err(
     bot: Bot,
     redis: Redis,
 ):
-    """
-    Формат: /err <sip_number> <описание>
-    Пример: /err 100 busy here
-    """
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
         await message.answer(
-            "⚠️ Неверный формат команды.\n\n"
-            "Используйте: <code>/err номер_сип описание</code>\n"
-            "Пример: <code>/err 100 busy here</code>",
+            "ℹ️ Рекомендуем: быстрые кнопки <b>Фрод / Баланс / Недозвон</b> "
+            f"или <b>{OTHER_ERROR_BUTTON}</b>.\n\n"
+            "Быстрая команда:\n"
+            "<code>/err номер_сип описание</code>\n"
+            "Пример: <code>/err 100 нет регистрации</code>",
             parse_mode="HTML",
+            reply_markup=get_main_menu(user),
         )
         return
 
     sip_number = args[1]
     description = args[2]
-
     sip_repo = SipRepository(session)
     ticket_repo = TicketRepository(session)
 
-    # Проверяем что SIP принадлежит пользователю
     sip = await sip_repo.get_by_number_and_user(sip_number, user.id)
     if not sip:
         await message.answer(
-            f"⛔ SIP <code>{sip_number}</code> не найден в вашем аккаунте.",
+            f"⛔ SIP <code>{escape_html(sip_number)}</code> не найден в вашем аккаунте.",
             parse_mode="HTML",
         )
         return
 
-    # Антиспам проверки
     error = await validate_sip_for_new_ticket(
         redis=redis, user=user, sip=sip, session=session,
     )
@@ -327,23 +455,16 @@ async def cmd_err(
     await set_cooldown(redis, user.id, sip.id, settings.cooldown_minutes)
     await increment_daily_counter(redis, user.id)
 
-    msg_id = await notify_support_new_ticket(bot, ticket, user, sip)
+    msg_id = await notify_support_new_ticket(
+        bot, ticket, user, sip,
+        error_label=f"💬 Команда /err: {description[:80]}",
+        session=session,
+    )
     if msg_id:
         await ticket_repo.set_support_message_id(ticket, msg_id)
 
     await message.answer(
-        f"✅ Заявка <b>#{ticket.id}</b> создана по SIP <code>{sip_number}</code>.\n"
-        "Поддержка уже уведомлена.",
+        _ticket_success_text(ticket.id, support_notified=msg_id is not None),
         parse_mode="HTML",
+        reply_markup=get_main_menu(user),
     )
-
-
-# ─── Вспомогательная клавиатура подтверждения ────────────────────────
-
-def _confirm_keyboard():
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Отправить", callback_data="ticket:confirm")
-    builder.button(text="❌ Отмена", callback_data="ticket:cancel")
-    builder.adjust(2)
-    return builder.as_markup()

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#222222">
+  <meta name="color-scheme" content="dark">
+  <title>SIP CRM</title>
+  <link rel="preconnect" href="https://telegram.org" crossorigin>
+  <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+  <link rel="stylesheet" href="/static/mini/mini.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="top">
+      <div class="brand-bar"></div>
+      <div class="top-row">
+        <div>
+          <div class="brand-title">SIP <span>CRM</span></div>
+          <div class="brand-sub" id="user-greet">Загрузка…</div>
+        </div>
+        <div class="user-pill" id="user-id">—</div>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab active" data-tab="home">Главная</button>
+      <button type="button" class="tab" data-tab="phone">Звонки</button>
+      <button type="button" class="tab" data-tab="sips">SIP</button>
+      <button type="button" class="tab" data-tab="tickets">Заявки</button>
+    </nav>
+
+    <main class="panels">
+      <section class="panel active" id="panel-home">
+        <div class="stat-row" id="home-stats"></div>
+        <h2 class="section-title">Быстрая заявка</h2>
+        <p class="hint">Выберите тип проблемы — SIP подставится автоматически, если он один.</p>
+        <div class="preset-grid" id="quick-presets"></div>
+        <button type="button" class="btn secondary block" id="more-presets-btn" hidden>Ещё типы ошибок</button>
+        <div class="preset-grid" id="extra-presets" hidden></div>
+      </section>
+
+      <section class="panel" id="panel-phone">
+        <div id="phone-disabled" class="empty" hidden>
+          Softphone недоступен.<br>Администратор должен настроить SIP-транк и учётные данные линии.
+        </div>
+        <div id="phone-ui" hidden>
+          <div class="phone-status">
+            <span class="reg-dot" id="reg-dot"></span>
+            <span id="phone-status-text">Не подключено</span>
+            <span class="call-timer" id="call-timer" hidden>00:00</span>
+          </div>
+          <label class="field-label" for="phone-line">Линия</label>
+          <select class="phone-select" id="phone-line"></select>
+          <div class="phone-display-wrap">
+            <input type="tel" inputmode="tel" class="phone-display" id="phone-number" placeholder="Номер" autocomplete="off" autocorrect="off" spellcheck="false">
+            <button type="button" class="phone-backspace" id="phone-backspace" aria-label="Удалить">⌫</button>
+          </div>
+          <div class="dialpad" id="dialpad"></div>
+          <div class="phone-actions" id="phone-actions">
+            <button type="button" class="btn secondary" id="phone-connect">Подключить</button>
+            <button type="button" class="btn call" id="phone-call" disabled>Позвонить</button>
+          </div>
+          <div class="phone-incall" id="phone-incall" hidden>
+            <button type="button" class="btn icon-btn" id="phone-mute" title="Mute">🔇</button>
+            <button type="button" class="btn hangup" id="phone-hangup">Завершить</button>
+          </div>
+        </div>
+        <div class="incoming-overlay" id="incoming-overlay" hidden>
+          <div class="incoming-card">
+            <div class="incoming-title">Входящий звонок</div>
+            <div class="incoming-number" id="incoming-number">—</div>
+            <div class="incoming-actions">
+              <button type="button" class="btn call" id="incoming-answer">Ответить</button>
+              <button type="button" class="btn hangup" id="incoming-decline">Отклонить</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-sips">
+        <div class="list" id="sip-list"></div>
+      </section>
+
+      <section class="panel" id="panel-tickets">
+        <div class="list" id="ticket-list"></div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" hidden></div>
+    <div class="loader" id="loader" hidden><div class="spinner"></div></div>
+  </div>
+  <script src="/static/mini/mini.js" defer></script>
+</body>
+</html>

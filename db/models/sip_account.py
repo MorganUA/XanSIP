@@ -29,6 +29,8 @@ class SipAccount(Base):
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     added_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    auth_username: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    auth_secret_enc: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

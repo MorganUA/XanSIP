@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.git/
+.env
+*.zip
+*.jpg
+readme.md
+extracted/
+.unpack-tmp/
+__MACOSX/
+.DS_Store
+sip-crm.zip
+main.env.zip

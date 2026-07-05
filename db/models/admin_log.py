@@ -1,10 +1,16 @@
+"""Legacy admin action log — deprecated, use audit_events (services.audit.log_audit)."""
+
 from datetime import datetime
+
 from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+
 from db.base import Base
 
 
 class AdminLog(Base):
+    """Deprecated: новые записи не создаются (см. bot.utils.admin_audit)."""
+
     __tablename__ = "admin_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

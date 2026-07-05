@@ -1,6 +1,8 @@
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from bot.catalog.group_errors import GROUP_ERROR_PRESETS, MAIN_PRESET_IDS
+from bot.utils.quick_errors import OTHER_ERROR_BUTTON
 from db.models.sip_account import SipAccount, SipStatus
 from db.models.ticket import Ticket, TicketStatus
 
@@ -22,6 +24,7 @@ TICKET_STATUS_LABELS = {
     TicketStatus.waiting_info: "❓ Нужна информация",
     TicketStatus.resolved: "✅ Решена",
     TicketStatus.rejected: "❌ Отклонена",
+    TicketStatus.closed: "🔒 Закрыта",
 }
 
 
@@ -29,7 +32,7 @@ def format_sip_list_text(sips: list[SipAccount]) -> str:
     lines = [
         "📞 <b>Ваши SIP-номера</b>\n",
         f"Всего: {len(sips)}",
-        "Выберите номер, чтобы посмотреть детали или сообщить об ошибке.\n",
+        "Выберите номер или сообщите об ошибке кнопками ниже.\n",
     ]
     for sip in sips:
         icon = STATUS_ICONS.get(sip.status, "⚪")
@@ -90,10 +93,19 @@ def get_sip_list_keyboard(sips: list[SipAccount]) -> InlineKeyboardMarkup:
 def get_sip_detail_keyboard(sip_id: int, *, can_report: bool) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if can_report:
+        for preset_id in MAIN_PRESET_IDS:
+            preset = GROUP_ERROR_PRESETS[preset_id]
+            builder.button(
+                text=preset.button,
+                callback_data=f"sip:quick:{sip_id}:{preset_id}",
+            )
         builder.button(
-            text="🚨 Сообщить об ошибке",
+            text=OTHER_ERROR_BUTTON,
             callback_data=f"sip:report:{sip_id}",
         )
     builder.button(text="◀️ К списку", callback_data="sip:back")
-    builder.adjust(1)
+    if can_report:
+        builder.adjust(2, 2, 1)
+    else:
+        builder.adjust(1)
     return builder.as_markup()

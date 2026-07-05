@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#222222">
+  <meta name="color-scheme" content="dark">
+  <title>SIP CRM — Управление</title>
+  <script>
+/** Base path helpers — works behind path prefix and in embedded previews. */
+(function (global) {
+  function appRoot() {
+    const parts = global.location.pathname.split("/").filter(Boolean);
+    if (parts.length && parts[parts.length - 1] === "login") {
+      parts.pop();
+    }
+    return parts.length ? "/" + parts.join("/") : "";
+  }
+  function join(base, segment) {
+    const clean = String(segment || "").replace(/^\//, "");
+    return (base ? base + "/" : "/") + clean;
+  }
+  global.SIPCRM = {
+    root: appRoot(),
+    api(path) {
+      return join(appRoot(), "api/" + String(path || "").replace(/^\//, ""));
+    },
+    static(path) {
+      return join(appRoot(), "static/" + String(path || "").replace(/^\//, ""));
+    },
+    homeUrl() {
+      const root = appRoot();
+      return root ? root + "/" : "/";
+    },
+    loginUrl() {
+      return join(appRoot(), "login");
+    },
+  };
+})(window);
+  </script>
+  <link rel="stylesheet" id="app-css">
+  <script>document.getElementById("app-css").href = SIPCRM.static("app.css");</script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-accent"></div>
+        <div class="brand-title">SIP <span class="brand-highlight">CRM</span></div>
+        <div class="brand-sub">Service Desk · Telegram Bot</div>
+      </div>
+      <nav class="nav">
+        <div class="nav-label">Обзор</div>
+        <button type="button" class="nav-item active" data-section="dashboard">📊 Дашборд</button>
+        <button type="button" class="nav-item" data-section="operation-guides">📖 Руководства</button>
+        <div class="nav-label">Операции</div>
+        <button type="button" class="nav-item" data-section="service-desk">
+          🚨 Колл-центр
+          <span class="nav-badge" id="nav-badge-sd" hidden>0</span>
+        </button>
+        <button type="button" class="nav-item" data-section="tickets">🎫 Все заявки</button>
+        <div class="nav-label">Справочники</div>
+        <button type="button" class="nav-item" data-section="users">👤 Пользователи</button>
+        <button type="button" class="nav-item" data-section="sips">📞 SIP</button>
+        <button type="button" class="nav-item" data-section="sip-guides">📚 SIP-интеграции</button>
+        <button type="button" class="nav-item" data-section="groups">
+          👥 Группы
+          <span class="nav-badge" id="nav-badge-groups" hidden>0</span>
+        </button>
+        <div class="nav-label">Финансы</div>
+        <button type="button" class="nav-item" data-section="finance">💰 Финансы</button>
+        <div class="nav-label">Интеграции</div>
+        <button type="button" class="nav-item" data-section="notion">📓 Notion</button>
+        <button type="button" class="nav-item" data-section="softphone">📞 SIP-транк</button>
+        <div class="nav-label">Система</div>
+        <button type="button" class="nav-item" data-section="audit">📜 Журнал</button>
+        <button type="button" class="nav-item" data-section="system">🗄 Реестр</button>
+        <button type="button" class="nav-item" data-section="notifications">🔔 Уведомления</button>
+      </nav>
+      <div class="nav-footer">
+        <button type="button" class="nav-item" id="logout-btn">🚪 Выйти</button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <span class="topbar-title" id="topbar-title">Обзор</span>
+        <span class="topbar-sync" id="topbar-sync"></span>
+      </header>
+
+      <div class="content">
+        <section id="dashboard" class="section active">
+          <div class="dash-hero">
+            <div class="dash-hero-text">
+              <h1>Центр управления</h1>
+              <p>Операционный обзор колл-центра, SLA и аналитика SIP в одном месте.</p>
+            </div>
+            <div class="dash-hero-kpis" id="dash-hero-kpis"></div>
+          </div>
+          <div class="dash-tabs" role="tablist">
+            <button type="button" class="dash-tab active" data-dash-tab="live" role="tab">⚡ Операции</button>
+            <button type="button" class="dash-tab" data-dash-tab="analytics" role="tab">📈 Аналитика</button>
+          </div>
+          <div id="dash-panel-live" class="dash-panel">
+            <div class="dash-bento" id="dash-cards"></div>
+          </div>
+          <div id="dash-panel-analytics" class="dash-panel" hidden>
+            <div class="toolbar dash-toolbar">
+              <label class="field-inline">
+                Период
+                <select id="dash-days">
+                  <option value="7">7 дней</option>
+                  <option value="30" selected>30 дней</option>
+                  <option value="90">90 дней</option>
+                  <option value="180">180 дней</option>
+                </select>
+              </label>
+              <button type="button" class="btn secondary" id="dash-refresh-btn">↻ Обновить</button>
+              <a class="btn" id="dash-export-btn" href="#" download>⬇ CSV-отчёт</a>
+            </div>
+            <div class="cards dash-analytics-cards" id="dash-analytics-cards"></div>
+            <div class="stats-grid">
+              <div class="stats-panel">
+                <h2>Типы ошибок</h2>
+                <div id="dash-errors" class="bar-list"></div>
+              </div>
+              <div class="stats-panel">
+                <h2>Источник заявок</h2>
+                <div id="dash-sources" class="bar-list"></div>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="stats-panel">
+                <h2>Топ SIP по заявкам</h2>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>SIP</th><th>За период</th><th>Открыто</th></tr></thead>
+                    <tbody id="dash-top-sips"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="stats-panel">
+                <h2>SIP с открытыми заявками</h2>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>SIP</th><th>Открыто</th></tr></thead>
+                    <tbody id="dash-open-sips"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="stats-panel">
+              <h2>Нагрузка поддержки</h2>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Агент</th><th>Internal ID</th><th>Взято</th><th>Решено</th></tr></thead>
+                  <tbody id="dash-agents"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="stats-panel">
+              <h2>Динамика по дням</h2>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Дата</th><th>Создано</th><th>Решено</th></tr></thead>
+                  <tbody id="dash-daily"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="service-desk" class="section">
+          <div class="page-header">
+            <h1>Очередь колл-центра</h1>
+            <p class="hint">
+              Заявки из Telegram-групп: <code>/err номер_сип</code> → выбор ошибки.
+              SLA: 3 мин. Горячие клавиши:
+              <span class="kbd">J</span>/<span class="kbd">K</span> навигация,
+              <span class="kbd">T</span> взять,
+              <span class="kbd">W</span> ожидание,
+              <span class="kbd">R</span> решить,
+              <span class="kbd">X</span> отклонить,
+              <span class="kbd">N</span> следующая новая.
+            </p>
+          </div>
+          <div class="sd-summary" id="sd-summary" hidden></div>
+          <div class="toolbar">
+            <button type="button" class="btn secondary" id="sd-next-btn">⏭ Следующая новая</button>
+            <button type="button" class="btn secondary" id="sd-refresh-btn">↻ Обновить</button>
+            <label class="auto-refresh">
+              <input type="checkbox" id="sd-auto" checked> Авто (20 с)
+            </label>
+          </div>
+          <div class="workspace">
+            <div class="queue-panel">
+              <div class="queue-header">
+                Очередь
+                <span id="sd-queue-count">0</span>
+              </div>
+              <div class="queue-filters">
+                <button type="button" class="chip active" data-sd-filter="all">Все <span class="chip-count" data-sd-count="all">0</span></button>
+                <button type="button" class="chip" data-sd-filter="new">Новые <span class="chip-count" data-sd-count="new">0</span></button>
+                <button type="button" class="chip" data-sd-filter="in_progress">В работе <span class="chip-count" data-sd-count="in_progress">0</span></button>
+                <button type="button" class="chip" data-sd-filter="waiting_info">Ожидание <span class="chip-count" data-sd-count="waiting_info">0</span></button>
+                <button type="button" class="chip chip-alert" data-sd-filter="sla_breach">SLA <span class="chip-count" data-sd-count="sla_breach">0</span></button>
+              </div>
+              <div class="queue-list" id="sd-queue">
+                <div class="empty-state">
+                  <div class="empty-icon">📭</div>
+                  <p>Загрузка…</p>
+                </div>
+              </div>
+            </div>
+            <div class="detail-panel">
+              <div class="detail-header">Детали заявки</div>
+              <div class="detail-body" id="sd-detail-body">
+                <div class="empty-state">
+                  <div class="empty-icon">👈</div>
+                  <p>Выберите заявку из очереди</p>
+                </div>
+              </div>
+              <div class="detail-actions" id="sd-detail-actions"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="users" class="section">
+          <div class="page-header"><h1>Пользователи</h1></div>
+          <div class="toolbar">
+            <input type="search" id="user-search" placeholder="ID, username, internal_id…">
+            <button type="button" class="btn secondary" id="user-search-btn">Найти</button>
+            <button type="button" class="btn secondary" id="user-refresh-btn">↻</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>ID</th><th>Telegram</th><th>Internal</th><th>Имя</th><th>Роль</th><th>Статус</th><th>Действия</th>
+              </tr></thead>
+              <tbody id="users-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="sips" class="section">
+          <div class="page-header">
+            <h1>SIP-номера</h1>
+            <p class="hint">Отключённые номера можно активировать повторно. Добавление существующего SIP также восстанавливает его.</p>
+          </div>
+          <div class="toolbar">
+            <input type="search" id="sip-search" placeholder="SIP или internal_id…">
+            <select id="sip-status-filter">
+              <option value="">Все статусы</option>
+              <option value="active">Активен</option>
+              <option value="frozen">Заморожен</option>
+              <option value="disabled">Отключён</option>
+            </select>
+            <button type="button" class="btn secondary" id="sip-filter-btn">Применить</button>
+            <button type="button" class="btn secondary" id="sip-refresh-btn">↻</button>
+            <button type="button" class="btn" id="add-sip-btn">+ Добавить SIP</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>SIP</th><th>Пользователь</th><th>Описание</th><th>Статус</th><th>Откр. заявки</th><th>Действия</th>
+              </tr></thead>
+              <tbody id="sips-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="sip-guides" class="section">
+          <div class="page-header">
+            <h1>SIP-интеграции</h1>
+            <p class="hint" id="sip-guides-disclaimer">Пошаговые руководства по официальной документации Kolmisoft (MOR / MOR5 Lite, PBX, API).</p>
+          </div>
+          <div class="sip-guides-toolbar">
+            <input type="search" id="sip-guides-search" placeholder="Поиск по руководствам…">
+            <div class="sip-guides-chips" id="sip-guides-chips"></div>
+          </div>
+          <div class="sip-guides-layout">
+            <nav class="sip-guides-nav" id="sip-guides-nav" aria-label="Список руководств"></nav>
+            <article class="sip-guide-detail" id="sip-guide-detail">
+              <div class="empty-state"><p>Выберите руководство слева</p></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="operation-guides" class="section">
+          <div class="page-header">
+            <h1>Руководства по эксплуатации</h1>
+            <p class="hint" id="operation-guides-disclaimer">Инструкции для пользователей, владельцев групп и администраторов SIP CRM.</p>
+          </div>
+          <div class="operation-roadmap" id="operation-guides-roadmap" hidden></div>
+          <div class="sip-guides-toolbar">
+            <input type="search" id="operation-guides-search" placeholder="Поиск по руководствам…">
+            <div class="sip-guides-chips" id="operation-guides-chips"></div>
+          </div>
+          <div class="sip-guides-layout">
+            <nav class="sip-guides-nav" id="operation-guides-nav" aria-label="Список руководств"></nav>
+            <article class="sip-guide-detail" id="operation-guide-detail">
+              <div class="empty-state"><p>Выберите руководство слева</p></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="tickets" class="section">
+          <div class="page-header">
+            <h1>Все заявки</h1>
+            <p class="hint">Полный журнал. Активные заявки колл-центра — в <a id="goto-sd">🚨 Колл-центр</a>.</p>
+          </div>
+          <div class="toolbar">
+            <select id="ticket-filter">
+              <option value="">Все статусы</option>
+              <option value="new">Новая</option>
+              <option value="in_progress">В работе</option>
+              <option value="waiting_info">Ожидание инфо</option>
+              <option value="resolved">Решена</option>
+              <option value="rejected">Отклонена</option>
+              <option value="closed">Закрыта</option>
+            </select>
+            <button type="button" class="btn secondary" id="ticket-filter-btn">Применить</button>
+            <button type="button" class="btn secondary" id="ticket-refresh-btn">↻</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>#</th><th>Статус</th><th>Ошибка</th><th>Источник</th><th>SIP</th><th>Пользователь</th><th>Создана</th><th>Действия</th>
+              </tr></thead>
+              <tbody id="tickets-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="groups" class="section">
+          <div class="page-header">
+            <h1>Колл-центры и группы</h1>
+            <p class="hint">Управление Telegram-группами: тариф, участники, условия работы, заморозка и отключение.</p>
+          </div>
+          <div class="toolbar">
+            <button type="button" class="btn" id="group-create-btn">+ Создать</button>
+            <input type="search" id="group-search" placeholder="Название, ID, тариф…">
+            <button type="button" class="chip active" data-group-filter="all">Все</button>
+            <button type="button" class="chip" data-group-filter="pending">Ожидают</button>
+            <button type="button" class="chip" data-group-filter="active">Активные</button>
+            <button type="button" class="chip" data-group-filter="frozen">Заморожены</button>
+            <button type="button" class="chip" data-group-filter="banned">Бан</button>
+            <button type="button" class="btn secondary" id="groups-refresh-btn">↻</button>
+          </div>
+          <div class="group-cards" id="group-cards">
+            <div class="empty-state"><div class="empty-icon">👥</div><p>Загрузка…</p></div>
+          </div>
+        </section>
+
+        <section id="finance" class="section">
+          <div class="page-header">
+            <h1>Финансы USDT</h1>
+            <p class="hint">Кошельки для пополнения, заявки пользователей и балансы. Подтверждение зачисляет средства на счёт.</p>
+          </div>
+          <div class="dash-tabs" role="tablist">
+            <button type="button" class="dash-tab active" data-fin-tab="wallets" role="tab">Кошельки</button>
+            <button type="button" class="dash-tab" data-fin-tab="deposits" role="tab">Заявки</button>
+            <button type="button" class="dash-tab" data-fin-tab="balances" role="tab">Балансы</button>
+            <button type="button" class="dash-tab" data-fin-tab="config" role="tab">Настройки</button>
+          </div>
+          <div id="fin-panel-wallets" class="dash-panel">
+            <div class="toolbar">
+              <button type="button" class="btn" id="fin-wallet-add">+ Кошелёк</button>
+              <button type="button" class="btn secondary" id="fin-refresh-wallets">↻</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>ID</th><th>Адрес</th><th>Метка</th><th>Сеть</th><th>Активен</th><th>Заметки</th><th>Действия</th>
+                </tr></thead>
+                <tbody id="fin-wallets-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div id="fin-panel-deposits" class="dash-panel" hidden>
+            <div class="toolbar">
+              <select id="fin-deposit-filter">
+                <option value="">Все</option>
+                <option value="pending">Ожидает</option>
+                <option value="awaiting_review">На проверке</option>
+                <option value="confirmed">Подтверждено</option>
+                <option value="rejected">Отклонено</option>
+              </select>
+              <button type="button" class="btn secondary" id="fin-refresh-deposits">↻</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>#</th><th>Пользователь</th><th>Сумма</th><th>Статус</th><th>Кошелёк</th><th>TX</th><th>Создана</th><th>Действия</th>
+                </tr></thead>
+                <tbody id="fin-deposits-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div id="fin-panel-balances" class="dash-panel" hidden>
+            <div class="toolbar">
+              <button type="button" class="btn secondary" id="fin-refresh-balances">↻</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>User ID</th><th>Internal ID</th><th>Telegram</th><th>Баланс USDT</th><th>Действия</th></tr></thead>
+                <tbody id="fin-balances-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div id="fin-panel-config" class="dash-panel" hidden>
+            <form id="fin-config-form" class="settings-form">
+              <div class="settings-block">
+                <label class="field"><span>Мин. пополнение USDT</span><input name="min_deposit_usdt" type="number" step="0.01" required></label>
+                <label class="field"><span>Макс. пополнение USDT</span><input name="max_deposit_usdt" type="number" step="0.01" required></label>
+                <label class="field"><span>Срок заявки (часов)</span><input name="deposit_ttl_hours" type="number" min="1" required></label>
+                <label class="field"><span>Текст инструкции (HTML)</span><textarea name="instruction_text" rows="4"></textarea></label>
+              </div>
+              <button type="submit" class="btn">Сохранить настройки</button>
+            </form>
+          </div>
+        </section>
+
+        <section id="notion" class="section">
+          <div class="page-header">
+            <h1>Интеграция Notion</h1>
+            <p class="hint">Синхронизация заявок и финансов с базами Notion. Токен задаётся только в <code>.env</code> на сервере.</p>
+          </div>
+          <div class="notion-status-bar" id="notion-status-bar">
+            <span class="notion-pill" id="notion-pill-token">Токен: …</span>
+            <span class="notion-pill" id="notion-pill-active">Статус: …</span>
+            <span class="notion-pill muted" id="notion-pill-version">API: …</span>
+          </div>
+          <div class="dash-tabs" role="tablist">
+            <button type="button" class="dash-tab active" data-notion-tab="guide" role="tab">📖 Алгоритм</button>
+            <button type="button" class="dash-tab" data-notion-tab="wizard" role="tab">🧙 Мастер</button>
+            <button type="button" class="dash-tab" data-notion-tab="ledger" role="tab">🏛 База XanaXGSM</button>
+            <button type="button" class="dash-tab" data-notion-tab="settings" role="tab">⚙️ Параметры</button>
+            <button type="button" class="dash-tab" data-notion-tab="explorer" role="tab">🔍 Обозреватель</button>
+          </div>
+
+          <div id="notion-panel-guide" class="dash-panel">
+            <div class="notion-guide-grid" id="notion-guide-content">
+              <div class="empty-state"><p>Загрузка справки…</p></div>
+            </div>
+          </div>
+
+          <div id="notion-panel-wizard" class="dash-panel" hidden>
+            <div class="notion-wizard">
+              <div class="notion-wizard-steps" id="notion-wizard-steps"></div>
+              <div class="notion-wizard-body" id="notion-wizard-body"></div>
+              <div class="notion-wizard-nav">
+                <button type="button" class="btn secondary" id="notion-wiz-prev" disabled>← Назад</button>
+                <button type="button" class="btn" id="notion-wiz-next">Далее →</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="notion-panel-ledger" class="dash-panel" hidden>
+            <div class="notion-guide-card" style="margin-bottom:1rem">
+              <h3>🏛 Учет доходов и расходов XanaXGSM</h3>
+              <p>Финансовая база для учёта пополнений USDT из бота. При подтверждении депозита CRM создаёт или обновляет строку в Notion.</p>
+              <p id="notion-ledger-status" class="hint">Загрузка…</p>
+            </div>
+            <div class="settings-block">
+              <h2>Создать новую базу</h2>
+              <p class="hint">Укажите Page ID родительской страницы в Notion (из URL). Интеграция должна иметь доступ к странице.</p>
+              <label class="field">
+                <span>Parent Page ID</span>
+                <input type="text" id="notion-ledger-parent-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+              </label>
+              <button type="button" class="btn" id="notion-ledger-create-btn">Создать базу в Notion</button>
+            </div>
+            <div class="settings-block">
+              <h2>Подключить существующую базу</h2>
+              <p class="hint">Если база уже есть (как на скриншоте) — вставьте её Database ID и нажмите «Привязать».</p>
+              <label class="field">
+                <span>Database ID</span>
+                <input type="text" id="notion-ledger-link-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+              </label>
+              <div class="toolbar">
+                <button type="button" class="btn" id="notion-ledger-link-btn">Привязать</button>
+                <button type="button" class="btn secondary" id="notion-ledger-validate-btn">Проверить схему</button>
+                <button type="button" class="btn secondary" id="notion-ledger-find-btn">Найти в workspace</button>
+              </div>
+              <pre id="notion-ledger-validation" class="notion-json-out">{}</pre>
+            </div>
+            <div class="settings-block">
+              <h2>Схема колонок</h2>
+              <ul id="notion-ledger-columns" class="hint"></ul>
+            </div>
+            <div class="settings-block">
+              <h2>Маппинг депозитов → Notion</h2>
+              <table class="notion-map-table">
+                <thead><tr><th>Поле Notion</th><th>Значение из CRM</th></tr></thead>
+                <tbody>
+                  <tr><td>Операция</td><td>Пополнение USDT #{id}</td></tr>
+                  <tr><td>Дата</td><td>Дата подтверждения / создания</td></tr>
+                  <tr><td>Сумма USD</td><td>amount_usdt</td></tr>
+                  <tr><td>Источник оплаты</td><td>USDT</td></tr>
+                  <tr><td>Категория</td><td>Пополнение кассы</td></tr>
+                  <tr><td>Тип</td><td>Вклад в бюджет</td></tr>
+                  <tr><td>Статус</td><td>Ожидает → Учтено / Отклонено</td></tr>
+                  <tr><td>Комментарий</td><td>SIPCRM:#id, user, tx, кошелёк</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="notion-panel-settings" class="dash-panel" hidden>
+            <form id="notion-settings-form" class="settings-form">
+              <div class="settings-block">
+                <h2>Общее</h2>
+                <label class="field checkbox-field">
+                  <input type="checkbox" name="enabled" id="notion-enabled">
+                  <span>Интеграция активна (дополняет NOTION_ENABLED в .env)</span>
+                </label>
+                <label class="field">
+                  <span>База по умолчанию (Database ID)</span>
+                  <input name="default_database_id" id="notion-default-db" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                </label>
+              </div>
+              <div class="settings-block">
+                <h2>Базы по типам данных</h2>
+                <label class="field"><span>Заявки (tickets)</span><input name="db_tickets" id="notion-db-tickets"></label>
+                <label class="field"><span>Депозиты (deposits)</span><input name="db_deposits" id="notion-db-deposits"></label>
+                <label class="field"><span>Фин. база XanaXGSM (finance_ledger)</span><input name="db_finance_ledger" id="notion-db-finance-ledger"></label>
+                <label class="field"><span>Пользователи (users)</span><input name="db_users" id="notion-db-users"></label>
+              </div>
+              <div class="settings-block">
+                <h2>События синхронизации</h2>
+                <div id="notion-sync-events" class="notion-sync-grid"></div>
+              </div>
+              <button type="submit" class="btn">Сохранить параметры</button>
+            </form>
+          </div>
+
+          <div id="notion-panel-explorer" class="dash-panel" hidden>
+            <div class="toolbar">
+              <input type="search" id="notion-search-q" placeholder="Поиск в workspace…">
+              <button type="button" class="btn secondary" id="notion-search-btn">Поиск</button>
+            </div>
+            <div class="notion-explorer-split">
+              <div class="notion-explorer-list" id="notion-search-results"></div>
+              <div class="notion-explorer-detail" id="notion-db-detail">
+                <p class="hint">Выберите базу из результатов или введите Database ID:</p>
+                <div class="toolbar">
+                  <input type="text" id="notion-explore-db-id" placeholder="Database ID">
+                  <button type="button" class="btn secondary" id="notion-db-schema-btn">Схема</button>
+                  <button type="button" class="btn secondary" id="notion-db-query-btn">Строки (10)</button>
+                </div>
+                <pre id="notion-explore-output" class="notion-json-out">{}</pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="audit" class="section">
+          <div class="page-header">
+            <h1>Журнал действий</h1>
+            <p class="hint">Неизменяемый журнал всех операций системы. Редактирование записей недоступно.</p>
+          </div>
+          <div class="toolbar">
+            <select id="audit-category">
+              <option value="">Все категории</option>
+              <option value="finance">finance</option>
+              <option value="admin">admin</option>
+            </select>
+            <button type="button" class="btn secondary" id="audit-refresh">↻</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>ID</th><th>Время</th><th>Категория</th><th>Действие</th><th>Актор</th><th>Сущность</th><th>Детали</th>
+              </tr></thead>
+              <tbody id="audit-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="system" class="section">
+          <div class="page-header">
+            <h1>Реестр памяти системы</h1>
+            <p class="hint">Все ключи app_settings. Двойной клик по значению — редактирование JSON (логируется).</p>
+          </div>
+          <div class="toolbar">
+            <button type="button" class="btn secondary" id="system-refresh">↻</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Ключ</th><th>Значение</th><th>Описание</th><th>Обновлено</th></tr></thead>
+              <tbody id="system-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="softphone" class="section">
+          <div class="page-header">
+            <h1>SIP-транк (Softphone)</h1>
+            <p class="hint">
+              WebRTC-параметры для встроенного softphone в Telegram Mini App.
+              Пользователям также нужны SIP credentials на каждой линии (раздел «SIP-номера» → Auth).
+            </p>
+            <p class="hint" id="sp-status-line"></p>
+          </div>
+          <form id="softphone-form" class="settings-form">
+            <div class="settings-block">
+              <h2>Общее</h2>
+              <label class="field checkbox-field">
+                <input type="checkbox" id="sp-enabled" name="enabled">
+                <span>Включить softphone в Mini App</span>
+              </label>
+              <label class="field">
+                <span>Отображаемое имя (Caller ID / display name)</span>
+                <input type="text" id="sp-display-name" maxlength="120" placeholder="SIP CRM">
+              </label>
+              <label class="field">
+                <span>TTL сессии credentials (сек, 60–900)</span>
+                <input type="number" id="sp-session-ttl" min="60" max="900" step="1" placeholder="300">
+              </label>
+            </div>
+            <div class="settings-block">
+              <h2>SIP / WebSocket</h2>
+              <label class="field">
+                <span>WSS URL (WebSocket SIP, TLS)</span>
+                <input type="text" id="sp-wss-url" placeholder="wss://pbx.example.com:8089/ws" autocomplete="off">
+              </label>
+              <label class="field">
+                <span>SIP domain (realm)</span>
+                <input type="text" id="sp-sip-domain" placeholder="pbx.example.com" autocomplete="off">
+              </label>
+              <label class="field">
+                <span>Outbound proxy (опционально)</span>
+                <input type="text" id="sp-outbound-proxy" placeholder="sip:pbx.example.com;transport=tls" autocomplete="off">
+              </label>
+              <label class="field">
+                <span>Префикс набора (опционально)</span>
+                <input type="text" id="sp-dial-prefix" placeholder="" autocomplete="off">
+              </label>
+            </div>
+            <div class="settings-block">
+              <h2>ICE / NAT</h2>
+              <label class="field">
+                <span>STUN-серверы (по одному на строку или через запятую)</span>
+                <textarea id="sp-stun-servers" rows="3" placeholder="stun:stun.l.google.com:19302"></textarea>
+              </label>
+              <label class="field">
+                <span>TURN URL (рекомендуется для мобильных клиентов)</span>
+                <input type="text" id="sp-turn-url" placeholder="turn:turn.example.com:3478?transport=udp" autocomplete="off">
+              </label>
+              <label class="field">
+                <span>TURN username</span>
+                <input type="text" id="sp-turn-username" autocomplete="off">
+              </label>
+              <label class="field">
+                <span>TURN credential <span id="sp-turn-cred-hint" class="hint" style="display:inline"></span></span>
+                <input type="password" id="sp-turn-credential" autocomplete="new-password" placeholder="оставьте пустым, чтобы не менять">
+              </label>
+            </div>
+            <div class="toolbar">
+              <button type="submit" class="btn">Сохранить</button>
+              <button type="button" class="btn secondary" id="sp-reset-env">Сбросить к .env</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="notifications" class="section">
+          <div class="page-header">
+            <h1>Уведомления Telegram</h1>
+            <p class="hint">
+              Куда отправлять алерты о заявках и какие события включены.
+              При апгрейде группы в супергруппу ID чата обновится автоматически.
+            </p>
+          </div>
+          <form id="notifications-form" class="settings-form">
+            <div class="settings-block">
+              <h2>Чаты получателей</h2>
+              <label class="field">
+                <span>Чаты поддержки (ID через запятую или с новой строки)</span>
+                <textarea id="nf-support-ids" rows="2" placeholder="-1001234567890"></textarea>
+              </label>
+              <label class="field">
+                <span>Личные чаты администраторов</span>
+                <textarea id="nf-admin-ids" rows="2" placeholder="123456789"></textarea>
+              </label>
+            </div>
+            <div class="settings-block" id="nf-events"></div>
+            <div class="toolbar">
+              <button type="submit" class="btn">Сохранить</button>
+              <button type="button" class="btn secondary" id="nf-reset-env">Сбросить к .env</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="group-dialog" class="group-dialog">
+    <h2 id="group-dialog-title">Группа</h2>
+    <form id="group-dialog-form" class="group-form">
+      <div class="group-form-tabs">
+        <button type="button" class="chip active" data-gf-tab="main">Основное</button>
+        <button type="button" class="chip" data-gf-tab="people">Участники</button>
+        <button type="button" class="chip" data-gf-tab="tariff">Тариф</button>
+        <button type="button" class="chip" data-gf-tab="work">Условия</button>
+      </div>
+      <div class="group-form-panel" data-gf-panel="main">
+        <label class="field"><span>Telegram ID группы</span><input name="telegram_group_id" type="number" required></label>
+        <label class="field"><span>Название в Telegram</span><input name="group_name" maxlength="255"></label>
+        <label class="field"><span>Метка колл-центра</span><input name="call_center_label" maxlength="255" placeholder="Напр. Колл-центр Север"></label>
+        <label class="field"><span>Заметки CRM</span><textarea name="notes" rows="2"></textarea></label>
+      </div>
+      <div class="group-form-panel" data-gf-panel="people" hidden>
+        <label class="field"><span>Участники и роли</span><textarea name="participants_info" rows="4" placeholder="ФИО, роли, смены…"></textarea></label>
+        <label class="field"><span>Контакты</span><textarea name="contact_info" rows="3" placeholder="Телефон, email, Telegram…"></textarea></label>
+      </div>
+      <div class="group-form-panel" data-gf-panel="tariff" hidden>
+        <label class="field"><span>Тариф</span><input name="tariff" maxlength="120" placeholder="Стандарт / Премиум"></label>
+        <label class="field"><span>Условия тарифа</span><textarea name="tariff_notes" rows="4"></textarea></label>
+      </div>
+      <div class="group-form-panel" data-gf-panel="work" hidden>
+        <label class="field"><span>Условия работы</span><textarea name="work_conditions" rows="5" placeholder="График, SLA, особые правила…"></textarea></label>
+      </div>
+    </form>
+    <div class="group-dialog-meta" id="group-dialog-meta"></div>
+    <div class="detail-actions" id="group-dialog-actions"></div>
+    <div class="actions">
+      <button type="button" class="btn secondary" id="group-dialog-close">Закрыть</button>
+      <button type="submit" form="group-dialog-form" class="btn" id="group-dialog-save">Сохранить</button>
+    </div>
+  </dialog>
+
+  <dialog id="ticket-dialog">
+    <h2 id="ticket-dialog-title">Заявка</h2>
+    <div id="ticket-dialog-body" class="detail-body" style="padding:0;max-height:60vh;overflow:auto"></div>
+    <div class="detail-actions" id="ticket-dialog-actions"></div>
+    <div class="actions">
+      <button type="button" class="btn secondary" id="ticket-dialog-close">Закрыть</button>
+    </div>
+  </dialog>
+
+  <dialog id="modal">
+    <h2 id="modal-title"></h2>
+    <form id="modal-form"></form>
+    <div class="actions">
+      <button type="button" class="btn secondary" id="modal-cancel">Отмена</button>
+      <button type="submit" form="modal-form" class="btn">OK</button>
+    </div>
+  </dialog>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function () {
+      var s = document.createElement("script");
+      s.src = SIPCRM.static("app.js");
+      document.body.appendChild(s);
+    })();
+  </script>
+</body>
+</html>

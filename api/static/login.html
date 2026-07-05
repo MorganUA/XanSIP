@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#222222">
+  <meta name="color-scheme" content="dark">
+  <title>SIP CRM — Вход</title>
+  <script>
+(function (global) {
+  function appRoot() {
+    const parts = global.location.pathname.split("/").filter(Boolean);
+    if (parts.length && parts[parts.length - 1] === "login") {
+      parts.pop();
+    }
+    return parts.length ? "/" + parts.join("/") : "";
+  }
+  function join(base, segment) {
+    const clean = String(segment || "").replace(/^\//, "");
+    return (base ? base + "/" : "/") + clean;
+  }
+  global.SIPCRM = {
+    root: appRoot(),
+    api(path) {
+      return join(appRoot(), "api/" + String(path || "").replace(/^\//, ""));
+    },
+    static(path) {
+      return join(appRoot(), "static/" + String(path || "").replace(/^\//, ""));
+    },
+    homeUrl() {
+      const root = appRoot();
+      return root ? root + "/" : "/";
+    },
+    loginUrl() {
+      return join(appRoot(), "login");
+    },
+  };
+})(window);
+  </script>
+  <link rel="stylesheet" id="app-css">
+  <script>document.getElementById("app-css").href = SIPCRM.static("app.css");</script>
+  <style>
+    .btn-submit {
+      width: 100%;
+      margin-top: 1.25rem;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.65rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font: inherit;
+    }
+    .btn-submit:hover { background: var(--accent-hover); }
+    .btn-submit:disabled { opacity: 0.6; cursor: wait; }
+    .btn-refresh {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.7rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font: inherit;
+    }
+    .captcha-row { display: flex; gap: 0.5rem; align-items: center; }
+    .captcha-box {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.6rem 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      user-select: none;
+    }
+    .login-card h1 { font-size: 1.25rem; margin-bottom: 0.25rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+    .login-card .sub { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem; }
+    .login-card label {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin: 0.85rem 0 0.3rem;
+    }
+    .login-card input { width: 100%; }
+    .error {
+      margin-top: 1rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: var(--radius-sm);
+      background: var(--danger-soft);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      font-size: 0.88rem;
+      display: none;
+    }
+    .error.show { display: block; }
+  </style>
+</head>
+<body class="login-page">
+  <div class="login-card">
+    <div class="brand-accent" style="width:2.5rem;height:3px;background:var(--accent);margin-bottom:0.75rem;border-radius:1px"></div>
+    <h1>SIP <span style="color:var(--text);font-weight:600">CRM</span></h1>
+    <p class="sub">Вход в панель управления ботом</p>
+    <form id="login-form">
+      <label for="username">Логин</label>
+      <input id="username" name="username" autocomplete="username" required autofocus>
+
+      <label for="password">Пароль</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+      <label>Captcha — решите пример</label>
+      <div class="captcha-row">
+        <div class="captcha-box" id="captcha-question">…</div>
+        <button type="button" class="btn-refresh" id="captcha-refresh" title="Обновить">↻</button>
+      </div>
+      <label for="captcha">Ответ</label>
+      <input id="captcha" name="captcha" inputmode="numeric" pattern="[0-9]+" required placeholder="Число">
+
+      <button type="submit" class="btn-submit" id="submit-btn">Войти</button>
+    </form>
+    <div class="error" id="error"></div>
+  </div>
+
+  <script>
+    function formatError(data) {
+      const d = data?.detail;
+      if (typeof d === "string") return d;
+      if (Array.isArray(d)) return d.map((x) => x.msg || JSON.stringify(x)).join("; ");
+      return "Ошибка входа";
+    }
+
+    function goToAppHome() {
+      window.location.replace(SIPCRM.homeUrl());
+    }
+
+    const form = document.getElementById("login-form");
+    const errorEl = document.getElementById("error");
+    const questionEl = document.getElementById("captcha-question");
+    const submitBtn = document.getElementById("submit-btn");
+
+    async function loadCaptcha() {
+      const res = await fetch(SIPCRM.api("auth/captcha"));
+      const data = await res.json();
+      questionEl.textContent = data.question + " = ?";
+      document.getElementById("captcha").value = "";
+    }
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.add("show");
+    }
+
+    document.getElementById("captcha-refresh").onclick = () =>
+      loadCaptcha().catch(() => showError("Не удалось загрузить captcha"));
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      errorEl.classList.remove("show");
+      submitBtn.disabled = true;
+      try {
+        const body = {
+          username: form.username.value.trim(),
+          password: form.password.value,
+          captcha: form.captcha.value.trim(),
+        };
+        const res = await fetch(SIPCRM.api("auth/login"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          await loadCaptcha();
+          throw new Error(formatError(data));
+        }
+        goToAppHome();
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    };
+
+    loadCaptcha().catch(() => showError("Не удалось загрузить captcha"));
+  </script>
+</body>
+</html>

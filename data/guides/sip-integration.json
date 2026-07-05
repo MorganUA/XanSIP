@@ -1,0 +1,350 @@
+{
+  "categories": {
+    "mor5": {
+      "label": "MOR / MOR5 Lite",
+      "icon": "🏛"
+    },
+    "pbx": {
+      "label": "PBX (3CX, Trixbox…)",
+      "icon": "📞"
+    },
+    "api": {
+      "label": "MOR API",
+      "icon": "🔌"
+    }
+  },
+  "disclaimer": "Материалы составлены исключительно по официальной документации Kolmisoft (wiki.kolmisoft.com, kolmisoft.com). SIP CRM не является аффилированным продуктом Kolmisoft.",
+  "guides": [
+    {
+      "id": "mor5-lite-overview",
+      "category": "mor5",
+      "title": "MOR / MOR5 Lite — обзор платформы",
+      "summary": "Kolmisoft MOR — Class 5 Softswitch с биллингом и маршрутизацией. MOR5 Lite — редакция той же платформы (упрощённая навигация в GUI). Настройка SIP выполняется через веб-интерфейс MOR: Users, Devices, Providers.",
+      "steps": [
+        {
+          "title": "Что такое MOR",
+          "body": "MOR объединяет Authentication, Authorization, Accounting (AAA) с биллингом, маршрутизацией, отчётами и управлением клиентами. Поддерживает SIP, H323, IAX2."
+        },
+        {
+          "title": "Кому подходит",
+          "body": "По данным Kolmisoft: VoIP/Broadband провайдеры, wholesale, residential VoIP, calling cards, call shops, callback и др."
+        },
+        {
+          "title": "Тестовая версия",
+          "body": "На сайте Kolmisoft доступна бесплатная версия MOR (ограничение — 10 одновременных звонков). Также есть Online Demo без установки."
+        },
+        {
+          "title": "MOR5 Lite",
+          "body": "MOR5 Lite использует те же сущности MOR (User, Device, Provider, LCR, Tariff). Отличия — в составе меню и доступных модулей GUI; шаги подключения SIP-устройств совпадают с документацией MOR Manual."
+        }
+      ],
+      "sources": [
+        {
+          "title": "MOR Introduction",
+          "url": "https://wiki.kolmisoft.com/index.php/MOR_Introduction"
+        },
+        {
+          "title": "MOR Manual",
+          "url": "https://wiki.kolmisoft.com/index.php/MOR_Manual"
+        },
+        {
+          "title": "MOR: Class 5 Softswitch",
+          "url": "https://www.kolmisoft.com/softswitches/class-5-softswitch"
+        },
+        {
+          "title": "VoIP Billing Software (FREE MOR)",
+          "url": "https://www.kolmisoft.com/voip-billing-software"
+        }
+      ]
+    },
+    {
+      "id": "mor-first-call",
+      "category": "mor5",
+      "title": "MOR — первый исходящий SIP-звонок",
+      "summary": "Официальная последовательность Kolmisoft после установки MOR для тестового звонка через SIP softphone.",
+      "steps": [
+        {
+          "title": "1. Создать Tariff для Provider",
+          "body": "SETTINGS → Billing → Tariffs → New tariff. Укажите валюту и тип. Добавьте Rates (prefix + price) вручную или импортом CSV.",
+          "menu": "SETTINGS → Billing → Tariffs"
+        },
+        {
+          "title": "2. Создать Tariff для User",
+          "body": "Создайте User Tariff из Provider Tariff — rates скопируются автоматически (с наценкой при необходимости)."
+        },
+        {
+          "title": "3. Создать Provider",
+          "body": "SETTINGS → Billing → Providers → New provider. Выберите Technology (SIP), назначьте Tariff, Server → Create.",
+          "menu": "SETTINGS → Billing → Providers"
+        },
+        {
+          "title": "4. Настроить Provider",
+          "body": "Authentication: IP Authentication — если upstream узнаёт вас по IP; или Register + Login/Password. Network: IP и Hostname провайдера, порт SIP 5060. Включите codecs, поддерживаемые провайдером."
+        },
+        {
+          "title": "5. Создать LCR",
+          "body": "SETTINGS → Routing → LCR → New LCR. Выберите порядок (by price / priority / percent). Назначьте Provider в LCR.",
+          "menu": "SETTINGS → Routing → LCR"
+        },
+        {
+          "title": "6. Создать User",
+          "body": "SETTINGS → Users → Add user. Назначьте LCR и User Tariff → Create.",
+          "menu": "SETTINGS → Users"
+        },
+        {
+          "title": "7. Создать Device (SIP)",
+          "body": "В списке Users → иконка Devices → Add new device. Type: SIP. Задайте Description, PIN при необходимости → Create."
+        },
+        {
+          "title": "8. Настроить softphone",
+          "body": "Зарегистрируйте SIP-клиент на <SERVER_IP> MOR с username/password Device. Kolmisoft рекомендует Zoiper или любой SIP softphone из их списка."
+        },
+        {
+          "title": "9. Набор номера",
+          "body": "Формат E.164 без международных префиксов: country + area + number (пример LT: 37063042439). USA/Canada — начинать с 1. Проверка: STATISTICS → Calls → Last Calls.",
+          "note": "Нет звука — softphone не зарегистрирован. Сообщение Kolmisoft — нет аккаунта на сервере."
+        }
+      ],
+      "sources": [
+        {
+          "title": "MOR How to make first call",
+          "url": "https://wiki.kolmisoft.com/index.php/MOR_How_to_make_first_call"
+        },
+        {
+          "title": "Providers",
+          "url": "https://wiki.kolmisoft.com/index.php/Providers"
+        },
+        {
+          "title": "Tariffs",
+          "url": "https://wiki.kolmisoft.com/index.php/Tariffs"
+        }
+      ]
+    },
+    {
+      "id": "mor-device-sip",
+      "category": "mor5",
+      "title": "MOR — SIP Device (телефон / софтфон / ATA)",
+      "summary": "Подключение конечного SIP-устройства к MOR как Device пользователя.",
+      "steps": [
+        {
+          "title": "Создать User и Device",
+          "body": "Device — endpoint, который инициирует или принимает вызовы. У User может быть несколько Devices."
+        },
+        {
+          "title": "Выбор типа Device",
+          "body": "Типы: Device (обычный), Virtual, Trunk, Trunk with ANI, Fax. Для телефона — Device, Type SIP или PJSIP."
+        },
+        {
+          "title": "Authentication — Dynamic (логин/пароль)",
+          "body": "Username и Password в Device → вводятся в SIP-телефон. Телефон должен зарегистрироваться на MOR до отправки вызовов."
+        },
+        {
+          "title": "Authentication — IP",
+          "body": "IP Address устройства в Device settings. MOR принимает вызовы с этого IP без логина. IP и login/password не работают одновременно для одного Device."
+        },
+        {
+          "title": "Параметры SIP",
+          "body": "Port (5060), DTMF Mode (RFC2833 часто), Qualify, Codecs, NAT/canreinvite, CallerID Name/Number, Ringing/Call Timeout.",
+          "menu": "Device settings → Authentication / Network Related / Codecs"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Devices",
+          "url": "https://wiki.kolmisoft.com/index.php/Devices"
+        },
+        {
+          "title": "Device settings",
+          "url": "https://wiki.kolmisoft.com/index.php/Device_settings"
+        },
+        {
+          "title": "Authentication",
+          "url": "https://wiki.kolmisoft.com/index.php/Authentication"
+        }
+      ]
+    },
+    {
+      "id": "mor-provider-sip",
+      "category": "mor5",
+      "title": "MOR — SIP Provider (upstream / carrier)",
+      "summary": "Подключение исходящего SIP-транка (terminator/supplier) к MOR.",
+      "steps": [
+        {
+          "title": "Тип Provider",
+          "body": "Providers бывают SIP, IAX2, ZAP, H323. Technology определяет протокол подключения."
+        },
+        {
+          "title": "Authenticate by IP",
+          "body": "Отметьте checkbox — Login/Password можно оставить пустым. MOR принимает вызовы с IP carrier."
+        },
+        {
+          "title": "Register к Provider",
+          "body": "Если MOR регистрируется у carrier — введите Login/Password от провайдера и нажмите Register."
+        },
+        {
+          "title": "Dynamic Provider",
+          "body": "Если carrier регистрируется на MOR — задайте Login/Password для carrier и выберите Dynamic в network settings."
+        },
+        {
+          "title": "Сеть",
+          "body": "Server: IP или hostname (dig +short). Port: 5060 SIP, 4569 IAX, 1720 H323. NAT, Media control (canreinvite)."
+        }
+      ],
+      "sources": [
+        {
+          "title": "Providers",
+          "url": "https://wiki.kolmisoft.com/index.php/Providers"
+        },
+        {
+          "title": "Authentication",
+          "url": "https://wiki.kolmisoft.com/index.php/Authentication"
+        }
+      ]
+    },
+    {
+      "id": "mor-pbx-trunk",
+      "category": "pbx",
+      "title": "MOR — подключение PBX (Trunk / Trunk with ANI)",
+      "summary": "Общая схема Kolmisoft для подключения любого IP/PSTN PBX к MOR.",
+      "steps": [
+        {
+          "title": "Исходящие с PBX",
+          "body": "1) User + Device для PBX в MOR. 2) Device пометить Trunk with ANI. 3) Для каждого телефона за PBX — отдельный virtual Device + CLI (CallerID) в MOR."
+        },
+        {
+          "title": "Входящие на PBX (DID)",
+          "body": "1) Virtual Device → Trunk. 2) Назначить DID. 3) Call Flow → Before Call → forward на PBX Device. 4) PBX сам маршрутизирует на нужный extension — MOR не управляет PBX.",
+          "note": "Без forward на PBX Device вызов не пройдёт. PBX настраивается отдельно."
+        },
+        {
+          "title": "Trunk with ANI — биллинг",
+          "body": "MOR сопоставляет CallerID входящего вызова с CLI Devices. Совпадение → биллинг нужного User/Device. Нет совпадения → User PBX Device."
+        }
+      ],
+      "sources": [
+        {
+          "title": "PBX connection to MOR",
+          "url": "https://wiki.kolmisoft.com/index.php/PBX_connection_to_MOR"
+        },
+        {
+          "title": "Trunks",
+          "url": "https://wiki.kolmisoft.com/index.php/Trunks"
+        }
+      ]
+    },
+    {
+      "id": "mor-3cx",
+      "category": "pbx",
+      "title": "MOR + 3CX",
+      "summary": "Интеграция 3CX с MOR по официальной документации Kolmisoft.",
+      "steps": [
+        {
+          "title": "Trunk mode 3CX в MOR",
+          "body": "В Device settings → Trunk: выберите «3CX». Опция добавляет rinstance в R-URI для аутентификации 3CX (dynamic trunks). R-URI строится из Contact URI с DID в user part."
+        },
+        {
+          "title": "Общая схема PBX",
+          "body": "Следуйте разделу PBX connection to MOR: Device PBX как Trunk with ANI, virtual devices + CLI для абонентов, DID → Call Flow forward на PBX."
+        },
+        {
+          "title": "Документация 3CX",
+          "body": "Kolmisoft ссылается на официальную документацию 3CX по SIP Trunk Registration Authentication."
+        }
+      ],
+      "sources": [
+        {
+          "title": "Device settings (Trunk 3CX)",
+          "url": "https://wiki.kolmisoft.com/index.php/Device_settings"
+        },
+        {
+          "title": "PBX connection to MOR",
+          "url": "https://wiki.kolmisoft.com/index.php/PBX_connection_to_MOR"
+        },
+        {
+          "title": "3CX SIP Trunk docs (ссылка из Kolmisoft Wiki)",
+          "url": "https://www.3cx.com/docs/sip-trunk-registration-authentication/"
+        }
+      ]
+    },
+    {
+      "id": "mor-trixbox",
+      "category": "pbx",
+      "title": "MOR + Trixbox / FreePBX",
+      "summary": "Пошаговая интеграция Trixbox (FreePBX) с MOR — официальный tutorial Kolmisoft.",
+      "steps": [
+        {
+          "title": "Архитектура",
+          "body": "MOR и Trixbox на разных серверах (на одном сервере конфликтуют Asterisk .conf). Trixbox подключается к MOR по SIP как Trunk with ANI."
+        },
+        {
+          "title": "Trixbox → MOR (исходящие)",
+          "body": "FreePBX: extension с CallerID → Outbound Route через Trunk на MOR (username/password mor_trixbox). MOR: User pbx_user + Device Trunk with ANI, host=Trixbox IP."
+        },
+        {
+          "title": "CallerID в MOR",
+          "body": "Для каждого телефона — User + virtual Device (Trunk) + CLI = CallerID extension в FreePBX."
+        },
+        {
+          "title": "Trixbox PEER CallerID",
+          "body": "При нескольких extensions: outbound PEER CallerID = пустой callerid=\"\" <>, иначе MOR получит последний CID."
+        },
+        {
+          "title": "DID → телефон",
+          "body": "MOR: DID на virtual Device → Call Flow forward на Trixbox Trunk. Trixbox: Direct DID или Inbound Route на extension."
+        }
+      ],
+      "sources": [
+        {
+          "title": "MOR and Trixbox",
+          "url": "https://wiki.kolmisoft.com/index.php/MOR_and_Trixbox"
+        },
+        {
+          "title": "PBX connection to MOR",
+          "url": "https://wiki.kolmisoft.com/index.php/PBX_connection_to_MOR"
+        }
+      ]
+    },
+    {
+      "id": "mor-api-device",
+      "category": "api",
+      "title": "MOR API — создание SIP Device",
+      "summary": "Программное создание Device через XML/HTTP API Kolmisoft (для автоматизации CRM).",
+      "steps": [
+        {
+          "title": "Endpoint",
+          "body": "POST /billing/api/device_create (GET не рекомендуется)."
+        },
+        {
+          "title": "Обязательные параметры",
+          "body": "u (admin username), user_id, hash (SHA1 от параметров + API_Secret_Key), type=SIP."
+        },
+        {
+          "title": "Дополнительно",
+          "body": "description, pin, extension, caller_id, call_timeout, devicegroup_id и др."
+        },
+        {
+          "title": "Обновление Device",
+          "body": "device_update: authentication=1 + host + port для IP auth; authentication=0 для Dynamic. qualify, sendrpid, custom_sip_header и др."
+        },
+        {
+          "title": "API Configuration",
+          "body": "API Secret Key и права задаются в MOR: SETTINGS → Setup → API Configuration (см. MOR Manual)."
+        }
+      ],
+      "sources": [
+        {
+          "title": "MOR API device create",
+          "url": "https://wiki.kolmisoft.com/index.php/MOR_API_device_create"
+        },
+        {
+          "title": "MOR API device update",
+          "url": "https://wiki.kolmisoft.com/index.php/MOR_API_device_update"
+        },
+        {
+          "title": "MOR Manual → API Configuration",
+          "url": "https://wiki.kolmisoft.com/index.php/MOR_Manual"
+        }
+      ]
+    }
+  ]
+}

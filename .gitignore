@@ -1,8 +1,48 @@
+# Python
 venv/
+.venv/
 __pycache__/
-*.pyc
-.env
+*.py[cod]
 *.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets & local deploy
+.env
+.env.local
+.env.*.local
+.deploy/
+*.pem
+*.key
+
+# OS & IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Build & archives
+backups/
+*.zip
+*.tar.gz
+*.tgz
+.extract-tmp/
+.unpack-tmp/
+extracted/
+__MACOSX/
+
+# Server credentials (never commit)
+de-vds
+main.env.zip
+sip-crm.zip
+
+# Screenshots / misc uploads
+*.jpg
+*.jpeg
+*.png
+!api/static/**
+
+# Node (if added later)
 node_modules/
 .next/

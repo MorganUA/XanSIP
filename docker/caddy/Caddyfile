@@ -1,0 +1,31 @@
+# TLS reverse proxy for SIP CRM Web API.
+#
+# Домен + Let's Encrypt:
+#   PUBLIC_WEB_DOMAIN=crm.example.com
+#   docker compose --profile tls up -d
+#
+# Self-signed (тест):
+#   PUBLIC_WEB_DOMAIN=:443
+#   (Caddy автоматически использует internal CA для :443 без hostname)
+#
+# После TLS: PUBLIC_WEB_URL=https://…  SESSION_HTTPS_ONLY=true
+
+{
+	email {$CADDY_EMAIL:admin@localhost}
+}
+
+{$PUBLIC_WEB_DOMAIN:localhost} {
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	reverse_proxy api:8000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
+}

@@ -19,6 +19,14 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_ids(self, user_ids: list[int]) -> dict[int, User]:
+        if not user_ids:
+            return {}
+        result = await self.session.execute(
+            select(User).where(User.id.in_(user_ids))
+        )
+        return {u.id: u for u in result.scalars().all()}
+
     async def create(
         self,
         telegram_id: int,
@@ -46,6 +54,28 @@ class UserRepository:
         await self.session.commit()
         return user
 
+    async def sync_profile(
+        self,
+        user: User,
+        *,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+    ) -> User:
+        changed = False
+        if user.username != username:
+            user.username = username
+            changed = True
+        if user.first_name != first_name:
+            user.first_name = first_name
+            changed = True
+        if user.last_name != last_name:
+            user.last_name = last_name
+            changed = True
+        if changed:
+            await self.session.commit()
+        return user
+
     async def ban(self, user: User, reason: str, banned_by_id: int) -> User:
         from datetime import datetime, timezone
         user.is_banned = True
@@ -69,4 +99,36 @@ class UserRepository:
             select(func.count()).select_from(User)
         )
         return result.scalar_one()
+
+    async def list_recent(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        search: str | None = None,
+    ) -> list[User]:
+        from sqlalchemy import or_
+
+        query = select(User).order_by(User.created_at.desc())
+        if search:
+            term = search.strip()
+            if term.isdigit():
+                query = query.where(
+                    or_(
+                        User.telegram_id == int(term),
+                        User.internal_id.ilike(f"%{term}%"),
+                    )
+                )
+            else:
+                like = f"%{term}%"
+                query = query.where(
+                    or_(
+                        User.internal_id.ilike(like),
+                        User.username.ilike(like),
+                        User.first_name.ilike(like),
+                    )
+                )
+        query = query.limit(limit).offset(offset)
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
 
