@@ -102,6 +102,18 @@ services:
       retries: 3
       start_period: 15s
 
+  # Valid HTTPS URL for Mini App API (GitHub Pages cross-origin). Logs: docker compose logs cloudflared
+  cloudflared:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - sipcrm
+
   # TLS reverse proxy (optional): docker compose --profile tls up -d
   caddy:
     profiles: ["tls"]

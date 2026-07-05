@@ -137,7 +137,7 @@ def run_remote(client: paramiko.SSHClient) -> None:
     commands = [
         f"cd {REMOTE_DIR} && docker compose down --remove-orphans 2>/dev/null || true",
         f"cd {REMOTE_DIR} && docker compose build bot api",
-        f"cd {REMOTE_DIR} && docker compose up -d",
+        f"cd {REMOTE_DIR} && docker compose --profile tls --profile tunnel up -d",
         f"cd {REMOTE_DIR} && sleep 8 && docker compose ps",
         f"cd {REMOTE_DIR} && docker compose logs --tail=30 bot",
         f"cd {REMOTE_DIR} && docker compose logs --tail=20 api",

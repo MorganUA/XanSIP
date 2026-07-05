@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -25,6 +26,14 @@ from db.base import async_session_maker
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="SIP CRM Admin", docs_url="/api/docs", redoc_url=None)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://bakaidesign1-a11y.github.io",
+    ],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(
     SessionMiddleware,
