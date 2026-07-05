@@ -50,6 +50,18 @@ python3 scripts/deploy_server.py
 
 См. [docs/README.md](docs/README.md).
 
+## GitHub
+
+```bash
+# Один раз: ключ для push/pull
+python3 scripts/setup_github_ssh.py
+# → добавьте pubkey на https://github.com/settings/ssh/new
+python3 scripts/setup_github_ssh.py --test
+git push -u origin main
+```
+
+Remote: `git@github.com:bakaidesign1-a11y/XanSIP.git` · CI: `.github/workflows/ci.yml`
+
 ## Переменные окружения
 
 Шаблон: [.env.example](.env.example). **Не коммитьте `.env`.**
